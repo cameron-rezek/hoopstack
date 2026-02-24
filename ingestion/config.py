@@ -38,7 +38,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # --- NBA Seasons ---
 # Format the NBA API expects: "2023-24"
 INITIAL_SEASON_START = 2010  # 2010-11 season
-CURRENT_SEASON_START = 2024  # 2024-25 season
+CURRENT_SEASON_START = 2025  # 2025-26 season
 
 def season_string(start_year: int) -> str:
     """Convert a start year like 2023 to the NBA season string '2023-24'."""
