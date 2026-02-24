@@ -19,7 +19,7 @@ ingestion/
     ├── reference_data.py # Teams, players, draft history
     ├── game_logs.py      # LeagueGameFinder (also discovers game IDs)
     ├── shot_charts.py    # ShotChartDetail per game
-    ├── play_by_play.py   # PlayByPlayV2 per game
+    ├── play_by_play.py   # PlayByPlayV3 per game (V2 deprecated by NBA API)
     ├── box_scores.py     # Traditional + advanced + misc box scores per game
     └── season_stats.py   # Lineups + player dash stats (season-level)
 ```
@@ -112,6 +112,6 @@ Cron example:
 ## Things to Watch For
 
 - **Raw table column mismatches**: The API might return columns that don't exist in your raw tables (or your tables might have columns the API doesn't populate). The `align_dataframe_to_table` function handles this, but worth verifying with the smoke test.
-- **Rate limiting**: The 1.5s default delay is conservative. If you're getting blocked, bump `REQUEST_DELAY_SECONDS` up to 2.0 in your `.env`. If things are running fine, you could try dropping it to 1.0 to speed up the backfill.
+- **Rate limiting**: Default delay is now 3.0s (bumped from 1.5 after hitting NBA API throttling). Can be adjusted via `REQUEST_DELAY_SECONDS` in `.env`.
 - **The `"to"` column**: Your progress doc mentions box_score_traditional and box_score_team_traditional have a quoted `"to"` column because TO is a reserved word. The bulk insert function quotes all column names so this should work, but worth verifying on the first box score insert.
 - **Game IDs**: The game tier relies on game IDs from the team_game_logs table. Always run the season tier before the game tier, or the game tier won't know which games to pull.

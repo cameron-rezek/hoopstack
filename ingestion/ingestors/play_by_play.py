@@ -1,9 +1,11 @@
 """
 Ingest play-by-play data for individual games.
+Uses PlayByPlayV3 (V2 was deprecated by the NBA API in 2024-25).
 """
 
+import re
 import pandas as pd
-from nba_api.stats.endpoints import PlayByPlayV2
+from nba_api.stats.endpoints import PlayByPlayV3
 
 from nba_client import fetch_endpoint
 from db import bulk_insert
@@ -13,11 +15,17 @@ from logger import get_logger
 log = get_logger("ingest.pbp")
 
 
+def _camel_to_snake(name: str) -> str:
+    """Convert camelCase column names to snake_case."""
+    s1 = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
+    return re.sub(r"([a-z\d])([A-Z])", r"\1_\2", s1).lower()
+
+
 def ingest_pbp_for_game(game_id: str) -> int:
     """Pull full play-by-play for a single game."""
     try:
         df = fetch_endpoint(
-            PlayByPlayV2,
+            PlayByPlayV3,
             result_set_index=0,
             game_id=game_id,
         )
@@ -25,12 +33,12 @@ def ingest_pbp_for_game(game_id: str) -> int:
         if df.empty:
             return 0
 
-        df.columns = [c.lower() for c in df.columns]
+        df.columns = [_camel_to_snake(c) for c in df.columns]
 
         rows = bulk_insert(
             df,
             "raw.play_by_play",
-            conflict_columns=["game_id", "eventnum"],
+            conflict_columns=["game_id", "action_number"],
         )
         return rows
 
