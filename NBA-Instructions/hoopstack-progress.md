@@ -149,6 +149,8 @@ git push origin main
 2. **V3 schema change:** PlayByPlayV3 returns camelCase columns with a different data model (single player per action vs V2's 3-player slots). Recreated `raw.play_by_play` table with V3-compatible columns. Added `_camel_to_snake()` column name converter.
 3. **NBA API rate limiting:** After ~600 rapid requests, the API starts timing out on every call. Bumped `REQUEST_DELAY_SECONDS` from 1.5 to 3.0 in `.env`.
 4. **Stale checkpoints:** The checkpoint system marks games as "done" even when ingestion returns 0 rows (e.g., from API errors). When restarting after fixing the V3 issue, had to manually clear stale `pbp_*` checkpoint entries while preserving valid `shots_*` entries.
+5. **Overly broad retry policy (2026-02-24):** `nba_client.py` was retrying on `Exception` (which includes `KeyError` from malformed API responses). Fixed to only retry on transient network errors (`ConnectionError`, `TimeoutError`, `requests.RequestException`). `KeyError` from malformed responses now propagates immediately instead of wasting 3 retry attempts.
+6. **Checkpoint-on-failure bug (2026-02-24):** All three per-game ingestors (shots, pbp, box scores) had try/except blocks inside the `_for_game()` functions that silently returned 0 on error, causing the `_for_season()` loop to checkpoint the game as "done." Moved error handling up to `_for_season()` so that only successful ingestions get checkpointed. Failed games will now be retried on the next run automatically.
 
 ### Updated raw.play_by_play Schema (V3)
 The table was dropped and recreated with these columns (different from V2):
@@ -176,26 +178,39 @@ nohup python run_backfill.py --start 2023 --end 2025 --tier game > backfill.log 
 
 # Check DB progress
 psql "host=192.168.1.22 port=5434 dbname=nba_analytics user=nba_admin password=ElephantLoopy!!84" \
-  -c "SELECT 'shots' as tbl, COUNT(*) FROM raw.shot_chart_detail UNION ALL SELECT 'pbp', COUNT(*) FROM raw.play_by_play;"
+  -c "SELECT 'shots' as tbl, COUNT(*) FROM raw.shot_chart_detail UNION ALL SELECT 'pbp', COUNT(*) FROM raw.play_by_play UNION ALL SELECT 'box_trad', COUNT(*) FROM raw.box_score_traditional UNION ALL SELECT 'box_adv', COUNT(*) FROM raw.box_score_advanced UNION ALL SELECT 'box_misc', COUNT(*) FROM raw.box_score_misc;"
 ```
 
-### Known Issue: Stale Checkpoints on Failure
-If the process gets rate-limited and fails a bunch of games, those games still get checkpointed as "done" with 0 rows. If you need to re-run failed games, clear the stale checkpoints:
-```python
+### Known Issue: Stale Checkpoints on Failure (fixed in code, but existing checkpoints need cleanup)
+The old code checkpointed games as "done" even when they errored with 0 rows. This is now fixed — errors are no longer checkpointed. But stale entries from previous runs need to be cleaned:
+```bash
 cd ~/ingestion-hoopstack/ingestion && source .venv/bin/activate
 python -c "
 import json
 from db import get_conn
+
+# Find games that actually have data
 with get_conn() as conn:
     with conn.cursor() as cur:
         cur.execute('SELECT DISTINCT game_id FROM raw.play_by_play')
-        real_games = {row[0] for row in cur.fetchall()}
+        real_pbp = {row[0] for row in cur.fetchall()}
+        cur.execute('SELECT DISTINCT game_id FROM raw.box_score_traditional')
+        real_box = {row[0] for row in cur.fetchall()}
+
 with open('checkpoints/game_tier.json') as f:
     data = json.load(f)
-data['completed'] = [x for x in data['completed'] if not x.startswith('pbp_') or x.replace('pbp_', '') in real_games]
+
+before = len(data['completed'])
+data['completed'] = [
+    x for x in data['completed']
+    if (not x.startswith('pbp_') or x.replace('pbp_', '') in real_pbp)
+    and (not x.startswith('box_') or x.replace('box_', '') in real_box)
+]
+after = len(data['completed'])
+
 with open('checkpoints/game_tier.json', 'w') as f:
     json.dump(data, f, indent=2)
-print('Cleaned stale pbp checkpoints')
+print(f'Cleaned {before - after} stale checkpoints ({after} valid remain)')
 "
 ```
 
@@ -210,8 +225,11 @@ print('Cleaned stale pbp checkpoints')
 ## Ingestion Code Changes (vs original setup doc)
 - `ingestors/play_by_play.py` — Now uses `PlayByPlayV3` instead of `PlayByPlayV2`, with `_camel_to_snake()` column conversion
 - `.env` — `REQUEST_DELAY_SECONDS` bumped to `3.0`
-- The main repo copy (`~/Documents/projects/hoopstack/ingestion/`) has been updated with both changes
-- The Mac Mini copy (`~/ingestion-hoopstack/ingestion/`) also has both changes
+- `nba_client.py` — Retry policy tightened: only retries on `ConnectionError`, `TimeoutError`, `requests.RequestException`. `KeyError` from malformed API responses is no longer retried (wastes time when rate-limited). Also added `@retry` to `fetch_all_result_sets` (was missing).
+- `ingestors/play_by_play.py`, `shot_charts.py`, `box_scores.py` — Error handling moved from `_for_game()` to `_for_season()`. Failed games are NOT checkpointed, so they get retried on the next run instead of being permanently skipped.
+- `.env.example` — Default `REQUEST_DELAY_SECONDS` updated to `3.0`
+- `ingestors/box_scores.py` — Switched from V2 to V3 endpoints: `BoxScoreTraditionalV3`, `BoxScoreAdvancedV3`, `BoxScoreMiscV3`. V2 endpoints are deprecated by the NBA API as of 2025-26. V3 returns camelCase columns (like PBP V3), added `_camel_to_snake()` conversion. TraditionalV3 returns 3 result sets instead of 2 (new [1]=starter/bench splits, team totals moved to [2]). Conflict columns use `person_id` instead of `player_id` to match V3 naming.
+- `scripts/migrate_box_scores_v3.sql` — DDL to drop and recreate all 4 raw box score tables with V3-compatible column names. Tables had 0 rows so no data loss.
 
 ---
 

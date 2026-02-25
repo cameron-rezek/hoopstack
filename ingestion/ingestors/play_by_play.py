@@ -22,29 +22,27 @@ def _camel_to_snake(name: str) -> str:
 
 
 def ingest_pbp_for_game(game_id: str) -> int:
-    """Pull full play-by-play for a single game."""
-    try:
-        df = fetch_endpoint(
-            PlayByPlayV3,
-            result_set_index=0,
-            game_id=game_id,
-        )
+    """
+    Pull full play-by-play for a single game.
+    Raises on error so the caller can skip checkpointing.
+    """
+    df = fetch_endpoint(
+        PlayByPlayV3,
+        result_set_index=0,
+        game_id=game_id,
+    )
 
-        if df.empty:
-            return 0
-
-        df.columns = [_camel_to_snake(c) for c in df.columns]
-
-        rows = bulk_insert(
-            df,
-            "raw.play_by_play",
-            conflict_columns=["game_id", "action_number"],
-        )
-        return rows
-
-    except Exception as e:
-        log.error(f"Play-by-play failed for game {game_id}: {e}")
+    if df.empty:
         return 0
+
+    df.columns = [_camel_to_snake(c) for c in df.columns]
+
+    rows = bulk_insert(
+        df,
+        "raw.play_by_play",
+        conflict_columns=["game_id", "action_number"],
+    )
+    return rows
 
 
 def ingest_pbp_for_season(
@@ -61,6 +59,7 @@ def ingest_pbp_for_season(
 
     total_rows = 0
     skipped = 0
+    errors = 0
 
     for i, game_id in enumerate(game_ids):
         ckpt_key = f"pbp_{game_id}"
@@ -69,15 +68,21 @@ def ingest_pbp_for_season(
             skipped += 1
             continue
 
-        rows = ingest_pbp_for_game(game_id)
-        total_rows += rows
+        try:
+            rows = ingest_pbp_for_game(game_id)
+            total_rows += rows
 
-        if checkpoint:
-            checkpoint.mark_done(ckpt_key)
+            # Only checkpoint on success (including legitimate 0-row responses)
+            if checkpoint:
+                checkpoint.mark_done(ckpt_key)
+        except Exception as e:
+            log.error(f"Play-by-play failed for game {game_id}: {e}")
+            errors += 1
+            # Do NOT checkpoint — game will be retried on next run
 
         if (i + 1) % 100 == 0:
-            log.info(f"  Progress: {i + 1}/{len(game_ids)} games, {total_rows} total rows")
+            log.info(f"  Progress: {i + 1}/{len(game_ids)} games, {total_rows} total rows, {errors} errors")
 
     log.info(
-        f"  Play-by-play for {season}: {total_rows} rows loaded, {skipped} skipped"
+        f"  Play-by-play for {season}: {total_rows} rows loaded, {skipped} skipped, {errors} errors"
     )

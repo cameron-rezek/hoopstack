@@ -19,40 +19,36 @@ def ingest_shots_for_game(game_id: str, season: str, season_type: str = SEASON_T
     """
     Pull all shot chart data for a single game.
     Using player_id=0 and team_id=0 returns all shots for the game.
+    Raises on error so the caller can skip checkpointing.
     """
-    try:
-        df = fetch_endpoint(
-            ShotChartDetail,
-            result_set_index=0,
-            player_id=0,
-            team_id=0,
-            game_id_nullable=game_id,
-            season_nullable=season,
-            season_type_all_star=season_type,
-            context_measure_simple="FGA",
-        )
+    df = fetch_endpoint(
+        ShotChartDetail,
+        result_set_index=0,
+        player_id=0,
+        team_id=0,
+        game_id_nullable=game_id,
+        season_nullable=season,
+        season_type_all_star=season_type,
+        context_measure_simple="FGA",
+    )
 
-        if df.empty:
-            return 0
-
-        df.columns = [c.lower() for c in df.columns]
-
-        # Add season info if not present
-        if "season" not in df.columns:
-            df["season"] = season
-        if "season_type" not in df.columns:
-            df["season_type"] = season_type
-
-        rows = bulk_insert(
-            df,
-            "raw.shot_chart_detail",
-            conflict_columns=["game_id", "game_event_id", "player_id"],
-        )
-        return rows
-
-    except Exception as e:
-        log.error(f"Shot chart failed for game {game_id}: {e}")
+    if df.empty:
         return 0
+
+    df.columns = [c.lower() for c in df.columns]
+
+    # Add season info if not present
+    if "season" not in df.columns:
+        df["season"] = season
+    if "season_type" not in df.columns:
+        df["season_type"] = season_type
+
+    rows = bulk_insert(
+        df,
+        "raw.shot_chart_detail",
+        conflict_columns=["game_id", "game_event_id", "player_id"],
+    )
+    return rows
 
 
 def ingest_shots_for_season(
@@ -69,6 +65,7 @@ def ingest_shots_for_season(
 
     total_rows = 0
     skipped = 0
+    errors = 0
 
     for i, game_id in enumerate(game_ids):
         ckpt_key = f"shots_{game_id}"
@@ -77,15 +74,19 @@ def ingest_shots_for_season(
             skipped += 1
             continue
 
-        rows = ingest_shots_for_game(game_id, season, season_type)
-        total_rows += rows
+        try:
+            rows = ingest_shots_for_game(game_id, season, season_type)
+            total_rows += rows
 
-        if checkpoint:
-            checkpoint.mark_done(ckpt_key)
+            if checkpoint:
+                checkpoint.mark_done(ckpt_key)
+        except Exception as e:
+            log.error(f"Shot chart failed for game {game_id}: {e}")
+            errors += 1
 
         if (i + 1) % 100 == 0:
-            log.info(f"  Progress: {i + 1}/{len(game_ids)} games, {total_rows} total rows")
+            log.info(f"  Progress: {i + 1}/{len(game_ids)} games, {total_rows} total rows, {errors} errors")
 
     log.info(
-        f"  Shot charts for {season}: {total_rows} rows loaded, {skipped} skipped (already done)"
+        f"  Shot charts for {season}: {total_rows} rows loaded, {skipped} skipped, {errors} errors"
     )

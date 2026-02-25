@@ -4,6 +4,7 @@ Handles rate limiting, retries, and DataFrame extraction from nba_api endpoints.
 """
 
 import time
+import requests
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
@@ -26,10 +27,11 @@ def _rate_limit():
     _last_request_time = time.time()
 
 
+# Only retry on transient network errors, not on malformed responses (KeyError etc.)
 @retry(
     stop=stop_after_attempt(MAX_RETRIES),
     wait=wait_exponential(multiplier=2, min=3, max=30),
-    retry=retry_if_exception_type((ConnectionError, TimeoutError, Exception)),
+    retry=retry_if_exception_type((ConnectionError, TimeoutError, requests.RequestException)),
     before_sleep=lambda retry_state: log.warning(
         f"Retry {retry_state.attempt_number}/{MAX_RETRIES} after error: "
         f"{retry_state.outcome.exception()}"
@@ -46,47 +48,63 @@ def fetch_endpoint(endpoint_class, result_set_index: int = 0, **kwargs) -> pd.Da
 
     Returns:
         DataFrame with the API response data
+
+    Raises:
+        KeyError: If the API returns a malformed response (e.g., rate-limited).
+                  NOT retried — caller should handle and skip checkpointing.
     """
     _rate_limit()
 
     endpoint_name = endpoint_class.__name__
     log.debug(f"Fetching {endpoint_name} with params: {kwargs}")
 
+    response = endpoint_class(**kwargs)
+
     try:
-        response = endpoint_class(**kwargs)
         result_sets = response.get_data_frames()
-
-        if not result_sets or result_set_index >= len(result_sets):
-            log.warning(f"{endpoint_name}: No data returned (result_set_index={result_set_index})")
-            return pd.DataFrame()
-
-        df = result_sets[result_set_index]
-        log.debug(f"{endpoint_name}: Got {len(df)} rows")
-        return df
-
-    except Exception as e:
-        error_msg = str(e)
-        # Don't retry on "no data" responses, those are expected for some games
-        if "200" in error_msg and "no data" in error_msg.lower():
-            log.debug(f"{endpoint_name}: No data available (expected for some games)")
-            return pd.DataFrame()
+    except KeyError as e:
+        # NBA API returned a response but with unexpected structure.
+        # This typically means rate-limiting or the endpoint has no data for this game.
+        # Raise so the caller can skip checkpointing and retry on the next run.
+        log.warning(f"{endpoint_name}: Malformed response (missing key {e})")
         raise
 
+    if not result_sets or result_set_index >= len(result_sets):
+        log.warning(f"{endpoint_name}: No data returned (result_set_index={result_set_index})")
+        return pd.DataFrame()
 
+    df = result_sets[result_set_index]
+    log.debug(f"{endpoint_name}: Got {len(df)} rows")
+    return df
+
+
+@retry(
+    stop=stop_after_attempt(MAX_RETRIES),
+    wait=wait_exponential(multiplier=2, min=3, max=30),
+    retry=retry_if_exception_type((ConnectionError, TimeoutError, requests.RequestException)),
+    before_sleep=lambda retry_state: log.warning(
+        f"Retry {retry_state.attempt_number}/{MAX_RETRIES} after error: "
+        f"{retry_state.outcome.exception()}"
+    ),
+)
 def fetch_all_result_sets(endpoint_class, **kwargs) -> list[pd.DataFrame]:
     """
     Call an nba_api endpoint and return ALL result sets.
     Useful for endpoints like BoxScoreTraditionalV2 that return
     both player-level and team-level data.
+
+    Raises:
+        KeyError: If the API returns a malformed response.
     """
     _rate_limit()
 
     endpoint_name = endpoint_class.__name__
     log.debug(f"Fetching all result sets from {endpoint_name}")
 
+    response = endpoint_class(**kwargs)
+
     try:
-        response = endpoint_class(**kwargs)
         return response.get_data_frames()
-    except Exception as e:
-        log.error(f"{endpoint_name} failed: {e}")
+    except KeyError as e:
+        log.warning(f"{endpoint_name}: Malformed response (missing key {e})")
         raise

@@ -1,13 +1,15 @@
 """
 Ingest box score data (traditional, advanced, misc) for individual games.
-Each box score endpoint returns both player-level and team-level result sets.
+Uses V3 endpoints (V2 deprecated by NBA API as of 2025-26 season).
+Each box score endpoint returns player-level and team-level result sets.
 """
 
+import re
 import pandas as pd
 from nba_api.stats.endpoints import (
-    BoxScoreTraditionalV2,
-    BoxScoreAdvancedV2,
-    BoxScoreMiscV2,
+    BoxScoreTraditionalV3,
+    BoxScoreAdvancedV3,
+    BoxScoreMiscV3,
 )
 
 from nba_client import fetch_all_result_sets
@@ -18,11 +20,15 @@ from logger import get_logger
 log = get_logger("ingest.boxscores")
 
 
-def _safe_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Lowercase columns and handle the reserved word 'TO' (turnovers)."""
-    df.columns = [c.lower() for c in df.columns]
-    # The NBA API returns 'TO' for turnovers which is a SQL reserved word.
-    # Our raw tables use quoted "to" columns. The bulk_insert handles quoting.
+def _camel_to_snake(name: str) -> str:
+    """Convert camelCase column names to snake_case."""
+    s1 = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
+    return re.sub(r"([a-z\d])([A-Z])", r"\1_\2", s1).lower()
+
+
+def _convert_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert V3 camelCase columns to snake_case."""
+    df.columns = [_camel_to_snake(c) for c in df.columns]
     return df
 
 
@@ -30,104 +36,97 @@ def ingest_box_traditional_for_game(game_id: str) -> tuple[int, int]:
     """
     Pull traditional box score for a game.
     Returns (player_rows, team_rows).
+    Raises on error so the caller can skip checkpointing.
 
-    BoxScoreTraditionalV2 result sets:
+    BoxScoreTraditionalV3 result sets:
       [0] = PlayerStats (player-level)
-      [1] = TeamStats (team-level)
+      [1] = StarterBenchStats (starter/bench splits — skipped)
+      [2] = TeamStats (team totals)
     """
-    try:
-        result_sets = fetch_all_result_sets(
-            BoxScoreTraditionalV2,
-            game_id=game_id,
+    result_sets = fetch_all_result_sets(
+        BoxScoreTraditionalV3,
+        game_id=game_id,
+    )
+
+    player_rows = 0
+    team_rows = 0
+
+    if len(result_sets) > 0 and not result_sets[0].empty:
+        df = _convert_columns(result_sets[0])
+        player_rows = bulk_insert(
+            df,
+            "raw.box_score_traditional",
+            conflict_columns=["game_id", "person_id"],
         )
 
-        player_rows = 0
-        team_rows = 0
+    if len(result_sets) > 2 and not result_sets[2].empty:
+        df = _convert_columns(result_sets[2])
+        team_rows = bulk_insert(
+            df,
+            "raw.box_score_team_traditional",
+            conflict_columns=["game_id", "team_id"],
+        )
 
-        if len(result_sets) > 0 and not result_sets[0].empty:
-            df = _safe_columns(result_sets[0])
-            player_rows = bulk_insert(
-                df,
-                "raw.box_score_traditional",
-                conflict_columns=["game_id", "player_id"],
-            )
-
-        if len(result_sets) > 1 and not result_sets[1].empty:
-            df = _safe_columns(result_sets[1])
-            team_rows = bulk_insert(
-                df,
-                "raw.box_score_team_traditional",
-                conflict_columns=["game_id", "team_id"],
-            )
-
-        return player_rows, team_rows
-
-    except Exception as e:
-        log.error(f"Box score traditional failed for {game_id}: {e}")
-        return 0, 0
+    return player_rows, team_rows
 
 
 def ingest_box_advanced_for_game(game_id: str) -> int:
     """
     Pull advanced box score for a game.
+    Raises on error so the caller can skip checkpointing.
 
-    BoxScoreAdvancedV2 result sets:
+    BoxScoreAdvancedV3 result sets:
       [0] = PlayerStats
-      [1] = TeamStats (we store player-level; team-level can be derived)
+      [1] = TeamStats
     """
-    try:
-        result_sets = fetch_all_result_sets(
-            BoxScoreAdvancedV2,
-            game_id=game_id,
-        )
+    result_sets = fetch_all_result_sets(
+        BoxScoreAdvancedV3,
+        game_id=game_id,
+    )
 
-        if not result_sets or result_sets[0].empty:
-            return 0
-
-        df = _safe_columns(result_sets[0])
-        rows = bulk_insert(
-            df,
-            "raw.box_score_advanced",
-            conflict_columns=["game_id", "player_id"],
-        )
-        return rows
-
-    except Exception as e:
-        log.error(f"Box score advanced failed for {game_id}: {e}")
+    if not result_sets or result_sets[0].empty:
         return 0
+
+    df = _convert_columns(result_sets[0])
+    rows = bulk_insert(
+        df,
+        "raw.box_score_advanced",
+        conflict_columns=["game_id", "person_id"],
+    )
+    return rows
 
 
 def ingest_box_misc_for_game(game_id: str) -> int:
     """
     Pull misc box score for a game (second chance pts, fast break, etc.).
+    Raises on error so the caller can skip checkpointing.
 
-    BoxScoreMiscV2 result sets:
+    BoxScoreMiscV3 result sets:
       [0] = PlayerStats
+      [1] = TeamStats
     """
-    try:
-        result_sets = fetch_all_result_sets(
-            BoxScoreMiscV2,
-            game_id=game_id,
-        )
+    result_sets = fetch_all_result_sets(
+        BoxScoreMiscV3,
+        game_id=game_id,
+    )
 
-        if not result_sets or result_sets[0].empty:
-            return 0
-
-        df = _safe_columns(result_sets[0])
-        rows = bulk_insert(
-            df,
-            "raw.box_score_misc",
-            conflict_columns=["game_id", "player_id"],
-        )
-        return rows
-
-    except Exception as e:
-        log.error(f"Box score misc failed for {game_id}: {e}")
+    if not result_sets or result_sets[0].empty:
         return 0
+
+    df = _convert_columns(result_sets[0])
+    rows = bulk_insert(
+        df,
+        "raw.box_score_misc",
+        conflict_columns=["game_id", "person_id"],
+    )
+    return rows
 
 
 def ingest_all_box_scores_for_game(game_id: str) -> dict:
-    """Pull all three box score types for a single game. Returns row counts."""
+    """
+    Pull all three box score types for a single game. Returns row counts.
+    Raises on error so the caller can skip checkpointing.
+    """
     trad_player, trad_team = ingest_box_traditional_for_game(game_id)
     adv = ingest_box_advanced_for_game(game_id)
     misc = ingest_box_misc_for_game(game_id)
@@ -153,6 +152,7 @@ def ingest_box_scores_for_season(
 
     total = {"traditional_player": 0, "traditional_team": 0, "advanced": 0, "misc": 0}
     skipped = 0
+    errors = 0
 
     for i, game_id in enumerate(game_ids):
         ckpt_key = f"box_{game_id}"
@@ -161,14 +161,18 @@ def ingest_box_scores_for_season(
             skipped += 1
             continue
 
-        counts = ingest_all_box_scores_for_game(game_id)
-        for k, v in counts.items():
-            total[k] += v
+        try:
+            counts = ingest_all_box_scores_for_game(game_id)
+            for k, v in counts.items():
+                total[k] += v
 
-        if checkpoint:
-            checkpoint.mark_done(ckpt_key)
+            if checkpoint:
+                checkpoint.mark_done(ckpt_key)
+        except Exception as e:
+            log.error(f"Box scores failed for game {game_id}: {e}")
+            errors += 1
 
         if (i + 1) % 100 == 0:
-            log.info(f"  Progress: {i + 1}/{len(game_ids)} games")
+            log.info(f"  Progress: {i + 1}/{len(game_ids)} games, {errors} errors")
 
-    log.info(f"  Box scores for {season}: {total}, {skipped} games skipped")
+    log.info(f"  Box scores for {season}: {total}, {skipped} skipped, {errors} errors")
