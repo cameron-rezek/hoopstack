@@ -24,6 +24,13 @@ DB_DSN = f"host={DB_HOST} port={DB_PORT} dbname={DB_NAME} user={DB_USER} passwor
 # --- Rate Limiting ---
 REQUEST_DELAY = float(os.getenv("REQUEST_DELAY_SECONDS", "1.5"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+API_TIMEOUT = int(os.getenv("API_TIMEOUT", "60"))  # seconds per request
+
+# --- Throttle Cooldown ---
+# When this many games fail consecutively, pause for COOLDOWN_SECONDS before continuing.
+# This handles NBA API throttling: back off and let the rate limit window reset.
+COOLDOWN_THRESHOLD = int(os.getenv("COOLDOWN_THRESHOLD", "3"))
+COOLDOWN_SECONDS = int(os.getenv("COOLDOWN_SECONDS", "300"))  # 5 minutes
 
 
 # --- Checkpointing ---

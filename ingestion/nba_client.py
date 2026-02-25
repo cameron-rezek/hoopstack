@@ -8,7 +8,7 @@ import requests
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-from config import REQUEST_DELAY, MAX_RETRIES
+from config import REQUEST_DELAY, MAX_RETRIES, API_TIMEOUT
 from logger import get_logger
 
 log = get_logger("nba_client")
@@ -58,7 +58,7 @@ def fetch_endpoint(endpoint_class, result_set_index: int = 0, **kwargs) -> pd.Da
     endpoint_name = endpoint_class.__name__
     log.debug(f"Fetching {endpoint_name} with params: {kwargs}")
 
-    response = endpoint_class(**kwargs)
+    response = endpoint_class(**kwargs, timeout=API_TIMEOUT)
 
     try:
         result_sets = response.get_data_frames()
@@ -101,7 +101,7 @@ def fetch_all_result_sets(endpoint_class, **kwargs) -> list[pd.DataFrame]:
     endpoint_name = endpoint_class.__name__
     log.debug(f"Fetching all result sets from {endpoint_name}")
 
-    response = endpoint_class(**kwargs)
+    response = endpoint_class(**kwargs, timeout=API_TIMEOUT)
 
     try:
         return response.get_data_frames()

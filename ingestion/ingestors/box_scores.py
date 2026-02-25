@@ -5,6 +5,7 @@ Each box score endpoint returns player-level and team-level result sets.
 """
 
 import re
+import time
 import pandas as pd
 from nba_api.stats.endpoints import (
     BoxScoreTraditionalV3,
@@ -15,6 +16,7 @@ from nba_api.stats.endpoints import (
 from nba_client import fetch_all_result_sets
 from db import bulk_insert
 from checkpoint import Checkpoint
+from config import COOLDOWN_THRESHOLD, COOLDOWN_SECONDS
 from logger import get_logger
 
 log = get_logger("ingest.boxscores")
@@ -153,6 +155,7 @@ def ingest_box_scores_for_season(
     total = {"traditional_player": 0, "traditional_team": 0, "advanced": 0, "misc": 0}
     skipped = 0
     errors = 0
+    consecutive_failures = 0
 
     for i, game_id in enumerate(game_ids):
         ckpt_key = f"box_{game_id}"
@@ -165,12 +168,22 @@ def ingest_box_scores_for_season(
             counts = ingest_all_box_scores_for_game(game_id)
             for k, v in counts.items():
                 total[k] += v
+            consecutive_failures = 0
 
             if checkpoint:
                 checkpoint.mark_done(ckpt_key)
         except Exception as e:
             log.error(f"Box scores failed for game {game_id}: {e}")
             errors += 1
+            consecutive_failures += 1
+
+            if consecutive_failures >= COOLDOWN_THRESHOLD:
+                log.warning(
+                    f"  {consecutive_failures} consecutive failures — "
+                    f"cooling down for {COOLDOWN_SECONDS}s to let API throttle reset"
+                )
+                time.sleep(COOLDOWN_SECONDS)
+                consecutive_failures = 0
 
         if (i + 1) % 100 == 0:
             log.info(f"  Progress: {i + 1}/{len(game_ids)} games, {errors} errors")

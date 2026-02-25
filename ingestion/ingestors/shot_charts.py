@@ -3,13 +3,14 @@ Ingest shot chart detail data.
 Pulls all shots for each game using player_id=0 (all players).
 """
 
+import time
 import pandas as pd
 from nba_api.stats.endpoints import ShotChartDetail
 
 from nba_client import fetch_endpoint
 from db import bulk_insert, get_existing_game_ids
 from checkpoint import Checkpoint
-from config import SEASON_TYPE_REGULAR, SEASON_TYPE_PLAYOFFS
+from config import SEASON_TYPE_REGULAR, SEASON_TYPE_PLAYOFFS, COOLDOWN_THRESHOLD, COOLDOWN_SECONDS
 from logger import get_logger
 
 log = get_logger("ingest.shots")
@@ -66,6 +67,7 @@ def ingest_shots_for_season(
     total_rows = 0
     skipped = 0
     errors = 0
+    consecutive_failures = 0
 
     for i, game_id in enumerate(game_ids):
         ckpt_key = f"shots_{game_id}"
@@ -77,12 +79,22 @@ def ingest_shots_for_season(
         try:
             rows = ingest_shots_for_game(game_id, season, season_type)
             total_rows += rows
+            consecutive_failures = 0
 
             if checkpoint:
                 checkpoint.mark_done(ckpt_key)
         except Exception as e:
             log.error(f"Shot chart failed for game {game_id}: {e}")
             errors += 1
+            consecutive_failures += 1
+
+            if consecutive_failures >= COOLDOWN_THRESHOLD:
+                log.warning(
+                    f"  {consecutive_failures} consecutive failures — "
+                    f"cooling down for {COOLDOWN_SECONDS}s to let API throttle reset"
+                )
+                time.sleep(COOLDOWN_SECONDS)
+                consecutive_failures = 0
 
         if (i + 1) % 100 == 0:
             log.info(f"  Progress: {i + 1}/{len(game_ids)} games, {total_rows} total rows, {errors} errors")

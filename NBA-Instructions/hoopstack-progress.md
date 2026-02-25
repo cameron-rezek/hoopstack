@@ -128,7 +128,7 @@ git push origin main
 
 ---
 
-## Current Backfill Status (as of 2026-02-24)
+## Current Backfill Status (as of 2026-02-25)
 
 ### Running on Mac Mini
 - **Location:** `~/ingestion-hoopstack/ingestion/` on Mac Mini (192.168.1.18)
@@ -137,12 +137,22 @@ git push origin main
 - **Log:** `~/ingestion-hoopstack/ingestion/backfill.log`
 - **Rate limit delay:** 3.0 seconds (bumped from 1.5 to avoid NBA API throttling)
 
-### Data Loaded So Far (2023-24 season, game tier)
-| Table | Rows | Games | Notes |
-|-------|------|-------|-------|
-| `raw.shot_chart_detail` | ~215,000 | 1,213 of 1,230 | Nearly complete for 2023-24 |
-| `raw.play_by_play` | ~42,000 | ~91 | In progress, working correctly now |
-| `raw.box_score_*` | 0 | 0 | Not started yet (runs after pbp) |
+### Data Loaded So Far
+| Table | Rows | Season | Notes |
+|-------|------|--------|-------|
+| `raw.shot_chart_detail` | ~211,431 | 2024-25 complete | 2023-24 also complete (~215k) |
+| `raw.play_by_play` | ~50,644 | 2024-25: ~100/1,230 games | Stalled due to NBA API throttling (see below) |
+| `raw.box_score_*` | 0 | Not started | Runs after PBP completes |
+
+### Throttling Issue (2026-02-25)
+After completing all 2024-25 shot charts (1,230 games) and ~100 PBP games, the NBA API started aggressively throttling. Every subsequent PBP request hits a 30s timeout, burns through 3 retries, and fails. The process keeps running (errors are caught, games not checkpointed) but makes zero progress.
+
+**Root cause:** ~1,330 consecutive API calls exhausted the rate limit. The code had no cooldown mechanism — it kept hammering the throttled API at the same rate.
+
+**Fix applied (2026-02-25):**
+- Added **consecutive failure cooldown**: after 3 games fail in a row, the process pauses for 5 minutes to let the API rate limit window reset, then resumes. Configurable via `COOLDOWN_THRESHOLD` and `COOLDOWN_SECONDS` in `.env`.
+- Added **explicit API timeout**: 60s (up from nba_api default of 30s) via `API_TIMEOUT` in `.env`. Gives the API more time to respond during slow periods.
+- Changes applied to all three per-game ingestors (shots, PBP, box scores).
 
 ### Issues Hit & Fixed
 1. **PlayByPlayV2 deprecated:** NBA API no longer returns data for the V2 endpoint (returns empty JSON, causes `KeyError: 'resultSet'`). Fixed by switching to **PlayByPlayV3** in `ingestors/play_by_play.py`.
@@ -151,6 +161,7 @@ git push origin main
 4. **Stale checkpoints:** The checkpoint system marks games as "done" even when ingestion returns 0 rows (e.g., from API errors). When restarting after fixing the V3 issue, had to manually clear stale `pbp_*` checkpoint entries while preserving valid `shots_*` entries.
 5. **Overly broad retry policy (2026-02-24):** `nba_client.py` was retrying on `Exception` (which includes `KeyError` from malformed API responses). Fixed to only retry on transient network errors (`ConnectionError`, `TimeoutError`, `requests.RequestException`). `KeyError` from malformed responses now propagates immediately instead of wasting 3 retry attempts.
 6. **Checkpoint-on-failure bug (2026-02-24):** All three per-game ingestors (shots, pbp, box scores) had try/except blocks inside the `_for_game()` functions that silently returned 0 on error, causing the `_for_season()` loop to checkpoint the game as "done." Moved error handling up to `_for_season()` so that only successful ingestions get checkpointed. Failed games will now be retried on the next run automatically.
+7. **No throttle cooldown (2026-02-25):** After ~1,300 API calls the NBA API throttles aggressively (every request times out). The code had no backoff between consecutive failures — it just kept trying the next game immediately, wasting ~2 minutes per game on doomed retries. Added a consecutive failure cooldown: after 3 failures in a row, pauses for 5 minutes (`COOLDOWN_THRESHOLD=3`, `COOLDOWN_SECONDS=300`). Also added explicit `API_TIMEOUT=60` (was relying on nba_api default of 30s).
 
 ### Updated raw.play_by_play Schema (V3)
 The table was dropped and recreated with these columns (different from V2):
@@ -230,6 +241,10 @@ print(f'Cleaned {before - after} stale checkpoints ({after} valid remain)')
 - `.env.example` — Default `REQUEST_DELAY_SECONDS` updated to `3.0`
 - `ingestors/box_scores.py` — Switched from V2 to V3 endpoints: `BoxScoreTraditionalV3`, `BoxScoreAdvancedV3`, `BoxScoreMiscV3`. V2 endpoints are deprecated by the NBA API as of 2025-26. V3 returns camelCase columns (like PBP V3), added `_camel_to_snake()` conversion. TraditionalV3 returns 3 result sets instead of 2 (new [1]=starter/bench splits, team totals moved to [2]). Conflict columns use `person_id` instead of `player_id` to match V3 naming.
 - `scripts/migrate_box_scores_v3.sql` — DDL to drop and recreate all 4 raw box score tables with V3-compatible column names. Tables had 0 rows so no data loss.
+- `config.py` — Added `API_TIMEOUT` (default 60s), `COOLDOWN_THRESHOLD` (default 3), `COOLDOWN_SECONDS` (default 300). All configurable via `.env`.
+- `nba_client.py` — Now passes `timeout=API_TIMEOUT` to all `nba_api` endpoint constructors (was relying on library default of 30s).
+- `ingestors/play_by_play.py`, `shot_charts.py`, `box_scores.py` — Added consecutive failure cooldown: after `COOLDOWN_THRESHOLD` failures in a row, sleeps for `COOLDOWN_SECONDS` to let the NBA API rate limit window reset.
+- `.env.example` — Updated with `API_TIMEOUT`, `COOLDOWN_THRESHOLD`, `COOLDOWN_SECONDS` settings.
 
 ---
 

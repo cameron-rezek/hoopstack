@@ -4,12 +4,14 @@ Uses PlayByPlayV3 (V2 was deprecated by the NBA API in 2024-25).
 """
 
 import re
+import time
 import pandas as pd
 from nba_api.stats.endpoints import PlayByPlayV3
 
 from nba_client import fetch_endpoint
 from db import bulk_insert
 from checkpoint import Checkpoint
+from config import COOLDOWN_THRESHOLD, COOLDOWN_SECONDS
 from logger import get_logger
 
 log = get_logger("ingest.pbp")
@@ -60,6 +62,7 @@ def ingest_pbp_for_season(
     total_rows = 0
     skipped = 0
     errors = 0
+    consecutive_failures = 0
 
     for i, game_id in enumerate(game_ids):
         ckpt_key = f"pbp_{game_id}"
@@ -71,6 +74,7 @@ def ingest_pbp_for_season(
         try:
             rows = ingest_pbp_for_game(game_id)
             total_rows += rows
+            consecutive_failures = 0
 
             # Only checkpoint on success (including legitimate 0-row responses)
             if checkpoint:
@@ -78,7 +82,16 @@ def ingest_pbp_for_season(
         except Exception as e:
             log.error(f"Play-by-play failed for game {game_id}: {e}")
             errors += 1
+            consecutive_failures += 1
             # Do NOT checkpoint — game will be retried on next run
+
+            if consecutive_failures >= COOLDOWN_THRESHOLD:
+                log.warning(
+                    f"  {consecutive_failures} consecutive failures — "
+                    f"cooling down for {COOLDOWN_SECONDS}s to let API throttle reset"
+                )
+                time.sleep(COOLDOWN_SECONDS)
+                consecutive_failures = 0
 
         if (i + 1) % 100 == 0:
             log.info(f"  Progress: {i + 1}/{len(game_ids)} games, {total_rows} total rows, {errors} errors")
