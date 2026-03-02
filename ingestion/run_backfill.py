@@ -104,8 +104,8 @@ def run_game_tier(seasons: list[str]):
         # Play-by-play
         ingest_pbp_for_season(season, game_ids, checkpoint=ckpt)
 
-        # Box scores (traditional + advanced + misc)
-        ingest_box_scores_for_season(season, game_ids, checkpoint=ckpt)
+        # Box scores dropped from scope (NBA API throttles too aggressively)
+        # ingest_box_scores_for_season(season, game_ids, checkpoint=ckpt)
 
     log.info(f"Game tier complete. {ckpt.completed_count} total checkpointed items.")
 
