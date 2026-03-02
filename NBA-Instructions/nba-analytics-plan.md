@@ -817,16 +817,18 @@ That's a comprehensive skill demonstration that very few portfolio projects achi
 
 ## Decisions Made
 
-1. **Historical data scope**: 2010-11 through present (~15 seasons) as the initial load. Architecture and ETL pipeline are built to support expanding to 2000-01 later with zero code changes (just run the backfill for earlier seasons and rebuild dbt models). 15 seasons provides clean, reliable data with a fast backfill (3-5 hours), while still offering meaningful historical depth for trend analysis.
+1. **Historical data scope**: 2023-24 through 2025-26 (3 seasons) as the initial load. The NBA API throttles aggressively on per-game endpoints (~600 calls triggers timeouts), making large historical backfills impractical. 3 seasons provides enough data for all planned analytics features. Architecture supports expanding to 2010+ later if desired — just run the backfill for earlier seasons and rebuild dbt models.
 
-2. **Update frequency**: Nightly batch processing during the NBA season. Simple, reliable, and totally sufficient for a portfolio/analytics platform. No real-time complexity.
+2. **Per-game box scores dropped**: The per-game box score V3 endpoints (traditional, advanced, misc) require 3 API calls per game, causing throttling after ~200 games. `player_game_logs` and `team_game_logs` (loaded via season-level endpoints with no throttling) already contain per-game traditional stats and are sufficient for the analytics layer. The raw box score tables exist with V3 schemas but will remain empty.
 
-3. **Tableau parallel track**: Yes. 2-3 Tableau Public dashboards built alongside the web app to cover job postings that specifically require Tableau/Power BI experience. Dashboards complement rather than duplicate the web features.
+3. **Update frequency**: Nightly batch processing during the NBA season. Simple, reliable, and totally sufficient for a portfolio/analytics platform. No real-time complexity.
 
-4. **Public API**: No. The API serves the frontend only. Keeps things simple and avoids the need for auth, rate limiting, and external documentation.
+4. **Tableau parallel track**: Yes. 2-3 Tableau Public dashboards built alongside the web app to cover job postings that specifically require Tableau/Power BI experience. Dashboards complement rather than duplicate the web features.
 
-5. **Domain name / branding**: TBD. Will decide later, but the architecture supports dropping in a custom domain whenever ready.
+5. **Public API**: No. The API serves the frontend only. Keeps things simple and avoids the need for auth, rate limiting, and external documentation.
 
-6. **Blog component**: Yes, built into the Next.js site using MDX. Analytical write-ups using the platform's own data, serving as both content marketing and a demonstration of communication skills.
+6. **Domain name / branding**: TBD. Will decide later, but the architecture supports dropping in a custom domain whenever ready.
 
-7. **Future expansion path**: When ready, expanding to 2000-01 involves running the existing backfill script for seasons 2000-2010, then running `dbt build` to rebuild transformations. The data quality scoring, era-appropriate test thresholds, and team relocation handling are already built into the pipeline, so the older (messier) data is handled gracefully without additional code.
+7. **Blog component**: Yes, built into the Next.js site using MDX. Analytical write-ups using the platform's own data, serving as both content marketing and a demonstration of communication skills.
+
+8. **Future expansion path**: When ready, expanding to 2010+ involves running the existing backfill script for earlier seasons, then running `dbt build` to rebuild transformations. Per-game box scores could be re-attempted with more aggressive batch resting (pause 60s every 50 games) if the advanced metrics are needed.

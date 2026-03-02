@@ -117,9 +117,10 @@ git push origin main
 - [x] Week 1: Set up GitHub repo with README — DONE
 - [x] Week 1-2: Write Python ingestion scripts — DONE
 - [x] Week 1-2: Ingestion code deployed to Mac Mini for long-running backfill
-- [ ] Week 1-2: Smoke test backfill (2023-2025) — **IN PROGRESS** (see below)
-- [ ] Week 1-2: Full historical backfill 2010-11 through present
-- [ ] Week 1: Initialize dbt project with source definitions — NOT STARTED
+- [x] Week 1-2: Smoke test backfill (2023-2025) — Reference + season tiers DONE; game tier IN PROGRESS (shots + PBP)
+- [ ] ~~Week 1-2: Full historical backfill 2010-11 through present~~ — DEFERRED (2023-2025 is sufficient for portfolio)
+- [ ] ~~Week 1-2: Per-game box scores~~ — DROPPED (NBA API throttles too aggressively; game_logs cover box score needs)
+- [ ] Week 1: Initialize dbt project with source definitions — **NEXT UP**
 - [ ] Week 1-2: Set up Airflow/Dagster/cron for nightly ingestion
 - [ ] Week 2-3: Build dbt staging models
 - [ ] Week 2-3: Build dbt analytics models
@@ -128,7 +129,14 @@ git push origin main
 
 ---
 
-## Current Backfill Status (as of 2026-02-25)
+## Current Backfill Status (as of 2026-03-02)
+
+### Scope Decision (2026-03-02)
+**Per-game box scores (BoxScoreTraditionalV3, BoxScoreAdvancedV3, BoxScoreMiscV3) have been dropped from scope.** Each game requires 3 API calls for box scores, causing aggressive NBA API throttling after ~200 games (~600 calls). The `player_game_logs` and `team_game_logs` tables (loaded via the season-level tier) already contain per-game box score stats (pts, reb, ast, fg%, etc.) and are sufficient for the analytics layer. Per-game advanced/misc metrics are supplementary and not worth the API pain.
+
+The V3 migration script (`scripts/migrate_box_scores_v3.sql`) was run on 2026-03-02 to recreate the tables with V3-compatible schemas, but they will remain empty. The tables exist in case per-game box scores are ever needed in the future.
+
+**Season range narrowed to 2023-2025** (3 seasons). For a portfolio project, 2-3 seasons of rich shot chart and play-by-play data is more than enough. Historical expansion to 2010+ can happen later if desired.
 
 ### Running on Mac Mini
 - **Location:** `~/ingestion-hoopstack/ingestion/` on Mac Mini (192.168.1.18)
@@ -137,21 +145,34 @@ git push origin main
 - **Log:** `~/ingestion-hoopstack/ingestion/backfill.log`
 - **Rate limit delay:** 3.0 seconds (bumped from 1.5 to avoid NBA API throttling)
 
-### Data Loaded So Far
-| Table | Rows | Season | Notes |
-|-------|------|--------|-------|
-| `raw.shot_chart_detail` | ~211,431 | 2024-25 complete | 2023-24 also complete (~215k) |
-| `raw.play_by_play` | ~50,644 | 2024-25: ~100/1,230 games | Stalled due to NBA API throttling (see below) |
-| `raw.box_score_*` | 0 | Not started | Runs after PBP completes |
+### Data Loaded (as of 2026-03-02)
+| Table | Rows | Games | Notes |
+|-------|------|-------|-------|
+| `raw.shot_chart_detail` | 434,471 | 2,439 | 2023-24 ✅ (1,213), 2024-25 ✅ (1,226), 2025-26 not started |
+| `raw.play_by_play` | 925,564 | 2,000 | 2023-24 ~64% (771/1,213), 2024-25 ✅ (1,229), 2025-26 not started |
+| `raw.player_game_logs` | 74,809 | 3,484 | All 3 seasons ✅ |
+| `raw.team_game_logs` | 6,968 | 3,484 | All 3 seasons ✅ |
+| `raw.league_dash_player_stats` | 2,111 | — | All 3 seasons ✅ |
+| `raw.lineup_stats` | 8,318 | — | All 3 seasons ✅ |
+| `raw.common_player_info` | 530 | — | ✅ |
+| `raw.team_details` | 30 | — | ✅ |
+| `raw.draft_history` | 8,235 | — | ✅ |
+| `raw.box_score_*` | 0 | — | Dropped from scope (see above) |
 
-### Throttling Issue (2026-02-25)
-After completing all 2024-25 shot charts (1,230 games) and ~100 PBP games, the NBA API started aggressively throttling. Every subsequent PBP request hits a 30s timeout, burns through 3 retries, and fails. The process keeps running (errors are caught, games not checkpointed) but makes zero progress.
+### What's Still Running
+The game tier backfill is running on the Mac Mini as of 2026-03-02. It needs to finish:
+- PBP for 2023-24 (~442 remaining games)
+- Shots + PBP for 2025-26 (~858 games)
+- Box scores will be skipped (checkpointed as done or will fail harmlessly)
 
-**Root cause:** ~1,330 consecutive API calls exhausted the rate limit. The code had no cooldown mechanism — it kept hammering the throttled API at the same rate.
+### Throttling History
+After completing all 2024-25 shot charts (1,230 games) and ~100 PBP games, the NBA API started aggressively throttling. Every subsequent PBP request hit a 30s timeout, burned through 3 retries, and failed.
+
+**Root cause:** ~1,330 consecutive API calls exhausted the rate limit. The code had no cooldown mechanism.
 
 **Fix applied (2026-02-25):**
 - Added **consecutive failure cooldown**: after 3 games fail in a row, the process pauses for 5 minutes to let the API rate limit window reset, then resumes. Configurable via `COOLDOWN_THRESHOLD` and `COOLDOWN_SECONDS` in `.env`.
-- Added **explicit API timeout**: 60s (up from nba_api default of 30s) via `API_TIMEOUT` in `.env`. Gives the API more time to respond during slow periods.
+- Added **explicit API timeout**: 60s (up from nba_api default of 30s) via `API_TIMEOUT` in `.env`.
 - Changes applied to all three per-game ingestors (shots, PBP, box scores).
 
 ### Issues Hit & Fixed
@@ -162,6 +183,9 @@ After completing all 2024-25 shot charts (1,230 games) and ~100 PBP games, the N
 5. **Overly broad retry policy (2026-02-24):** `nba_client.py` was retrying on `Exception` (which includes `KeyError` from malformed API responses). Fixed to only retry on transient network errors (`ConnectionError`, `TimeoutError`, `requests.RequestException`). `KeyError` from malformed responses now propagates immediately instead of wasting 3 retry attempts.
 6. **Checkpoint-on-failure bug (2026-02-24):** All three per-game ingestors (shots, pbp, box scores) had try/except blocks inside the `_for_game()` functions that silently returned 0 on error, causing the `_for_season()` loop to checkpoint the game as "done." Moved error handling up to `_for_season()` so that only successful ingestions get checkpointed. Failed games will now be retried on the next run automatically.
 7. **No throttle cooldown (2026-02-25):** After ~1,300 API calls the NBA API throttles aggressively (every request times out). The code had no backoff between consecutive failures — it just kept trying the next game immediately, wasting ~2 minutes per game on doomed retries. Added a consecutive failure cooldown: after 3 failures in a row, pauses for 5 minutes (`COOLDOWN_THRESHOLD=3`, `COOLDOWN_SECONDS=300`). Also added explicit `API_TIMEOUT=60` (was relying on nba_api default of 30s).
+8. **Box score V3 migration not applied (2026-03-02):** The code was updated to use V3 endpoints (`person_id`, V3 column names) but the migration script `scripts/migrate_box_scores_v3.sql` was never run on the database. Tables still had V2 schema (`player_id`). Every box score insert failed with `column "person_id" does not exist`. Fixed by running the migration script. Moot now since box scores are dropped from scope.
+9. **V3 VARCHAR too short (2026-03-02):** After running the V3 migration, `name_i VARCHAR(20)` was too short for some player names. Widened `name_i` and `minutes` to `VARCHAR(50)` and `jersey_num`/`position` to `VARCHAR(20)` across all box score tables. Again moot since box scores are dropped.
+10. **Box scores dropped from scope (2026-03-02):** Per-game box scores require 3 API calls per game, causing the NBA API to throttle after ~200 games. `player_game_logs` and `team_game_logs` (loaded via the season tier with no throttling issues) already contain per-game traditional stats and are sufficient for the analytics layer.
 
 ### Updated raw.play_by_play Schema (V3)
 The table was dropped and recreated with these columns (different from V2):
@@ -226,10 +250,9 @@ print(f'Cleaned {before - after} stale checkpoints ({after} valid remain)')
 ```
 
 ### What Comes After the 2023-2025 Game Tier
-1. Verify all data landed for 2023-24, 2024-25, 2025-26 seasons
-2. Run the full historical backfill: `python run_backfill.py --start 2010 --end 2022 --tier game`
-3. Also need to run reference + season tiers for the full range
-4. Then: dbt project setup, staging models, analytics models
+1. Verify shots + PBP data landed for all 3 seasons (2023-24, 2024-25, 2025-26)
+2. **Next:** dbt project setup, staging models, analytics models
+3. **Later (optional):** Historical backfill 2010-2022 if needed for trend analysis features
 
 ---
 
