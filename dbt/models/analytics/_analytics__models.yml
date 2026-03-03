@@ -1,0 +1,8 @@
+version: 2
+
+# Analytics (gold) models — to be built after staging is validated.
+# Planned:
+#   - fct_player_game_advanced (advanced stats from game logs + PBP)
+#   - agg_shot_expected_value (shot quality model output)
+#   - agg_lineup_stats (lineup performance metrics)
+#   - agg_player_rolling_stats (rolling averages for trend analysis)

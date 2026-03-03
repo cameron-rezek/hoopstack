@@ -1,0 +1,97 @@
+version: 2
+
+sources:
+  - name: nba_raw
+    description: "Raw bronze layer data ingested from the NBA Stats API via nba_api Python library."
+    database: nba_analytics
+    schema: raw
+    loader: "nba_api python ingestion pipeline"
+
+    tables:
+      - name: shot_chart_detail
+        description: "Every field goal attempt with court x/y coordinates, shot zone classification, and outcome. ~560k rows across 3 seasons (2023-2025). Natural key: (game_id, game_event_id, player_id)."
+        columns:
+          - name: game_id
+            description: "NBA game identifier (e.g., '0022300001')"
+          - name: game_event_id
+            description: "Event number within the game"
+          - name: player_id
+            description: "NBA player identifier"
+          - name: loc_x
+            description: "Court x-coordinate in tenths of a foot from center baseline"
+          - name: loc_y
+            description: "Court y-coordinate in tenths of a foot from center baseline"
+          - name: shot_made_flag
+            description: "1 if made, 0 if missed"
+          - name: shot_type
+            description: "'2PT Field Goal' or '3PT Field Goal'"
+
+      - name: play_by_play
+        description: "Full play-by-play event stream per game using V3 API schema (camelCase converted to snake_case). ~1.16M rows across 3 seasons. Natural key: (game_id, action_number)."
+        columns:
+          - name: game_id
+            description: "NBA game identifier"
+          - name: action_number
+            description: "Sequential action number within the game (V3 key)"
+          - name: person_id
+            description: "Player who performed the action (V3 naming)"
+          - name: action_type
+            description: "Type of play action"
+          - name: description
+            description: "Human-readable description of the play"
+
+      - name: common_player_info
+        description: "Player biographical and demographic information. ~530 active players. Natural key: person_id."
+        columns:
+          - name: person_id
+            description: "NBA player identifier (primary key)"
+          - name: display_first_last
+            description: "Full display name"
+
+      - name: player_game_logs
+        description: "Per-game stats for every player appearance. ~74k rows. Loaded via LeagueGameFinder. Partitioned by (season_id, season_type)."
+        columns:
+          - name: season_id
+            description: "Season identifier (e.g., '2023-24')"
+          - name: game_id
+            description: "NBA game identifier"
+          - name: player_id
+            description: "NBA player identifier"
+
+      - name: team_game_logs
+        description: "Per-game stats for every team appearance. ~6.9k rows. Partitioned by (season_id, season_type)."
+        columns:
+          - name: season_id
+            description: "Season identifier"
+          - name: game_id
+            description: "NBA game identifier"
+          - name: team_id
+            description: "NBA team identifier"
+
+      - name: league_dash_player_stats
+        description: "Season-level aggregate player statistics. ~2.1k rows. Partitioned by (season, season_type)."
+        columns:
+          - name: player_id
+            description: "NBA player identifier"
+          - name: season
+            description: "Season identifier"
+
+      - name: lineup_stats
+        description: "5-man lineup combination statistics per season. ~8.3k rows. Partitioned by (season, season_type)."
+        columns:
+          - name: group_id
+            description: "Lineup group identifier"
+          - name: season
+            description: "Season identifier"
+
+      - name: team_details
+        description: "Team information for all 30 NBA teams. Static reference data. Natural key: team_id."
+        columns:
+          - name: team_id
+            description: "NBA team identifier (primary key)"
+
+      - name: draft_history
+        description: "Historical NBA draft picks. ~8.2k rows."
+        columns:
+          - name: person_id
+            description: "Drafted player identifier"

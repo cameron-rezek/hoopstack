@@ -9,6 +9,7 @@ build/
 venv/
 .venv/
 env/
+dbt-venv/
 
 # Environment variables (never commit credentials)
 .env

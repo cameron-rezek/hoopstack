@@ -1,0 +1,125 @@
+version: 2
+
+models:
+  - name: stg_players
+    description: "Cleaned and deduplicated player biographical data. One row per player (most recent ingestion wins)."
+    columns:
+      - name: player_id
+        description: "Unique NBA player identifier"
+        data_tests:
+          - unique
+          - not_null
+      - name: player_name
+        description: "Full display name (e.g., 'LeBron James')"
+        data_tests:
+          - not_null
+
+  - name: stg_shot_charts
+    description: "Standardized shot chart data with computed distance, angle, and game clock fields. One row per shot attempt."
+    columns:
+      - name: game_id
+        data_tests:
+          - not_null
+      - name: game_event_id
+        data_tests:
+          - not_null
+      - name: player_id
+        data_tests:
+          - not_null
+      - name: is_made
+        data_tests:
+          - not_null
+      - name: shot_value
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [2, 3]
+      - name: season
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - game_id
+              - game_event_id
+              - player_id
+
+  - name: stg_play_by_play
+    description: "Cleaned V3 play-by-play event stream. One row per action per game."
+    columns:
+      - name: game_id
+        data_tests:
+          - not_null
+      - name: action_number
+        data_tests:
+          - not_null
+      - name: period
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - game_id
+              - action_number
+
+  - name: stg_player_game_logs
+    description: "Player-level per-game statistics. Primary source of box score data."
+    columns:
+      - name: game_id
+        data_tests:
+          - not_null
+      - name: player_id
+        data_tests:
+          - not_null
+      - name: season_id
+        data_tests:
+          - not_null
+      - name: game_date
+        data_tests:
+          - not_null
+      - name: win_loss
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['W', 'L']
+      - name: home_away
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['home', 'away', 'unknown']
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - game_id
+              - player_id
+
+  - name: stg_team_game_logs
+    description: "Team-level per-game statistics. One row per team per game."
+    columns:
+      - name: game_id
+        data_tests:
+          - not_null
+      - name: team_id
+        data_tests:
+          - not_null
+      - name: season_id
+        data_tests:
+          - not_null
+      - name: game_date
+        data_tests:
+          - not_null
+      - name: win_loss
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['W', 'L']
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - game_id
+              - team_id

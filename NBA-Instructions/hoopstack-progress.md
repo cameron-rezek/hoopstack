@@ -68,8 +68,20 @@ Note: the `"to"` column in box_score_traditional and box_score_team_traditional 
 - `dims.dim_team_history` (slowly changing dimension for relocations/rebrandings)
 - `dims.dim_game_types` (seeded with: Regular Season, Playoffs, All Star, Pre Season, Play-In)
 
-### Staging & Analytics Tables
-Not yet created — these will be built by dbt models later in Phase 1 Week 2-3.
+### Staging Views Created by dbt (2026-03-03)
+5 views in the `staging` schema, created via `dbt run`:
+- `staging.stg_players` — deduplicated from `raw.common_player_info`
+- `staging.stg_shot_charts` — from `raw.shot_chart_detail`, adds computed `distance_feet`, `shot_angle`, `game_minutes_elapsed`, `is_location_reliable`, `shot_value`
+- `staging.stg_play_by_play` — from `raw.play_by_play` (V3), adds `score_differential`, renames `person_id` -> `player_id`
+- `staging.stg_player_game_logs` — from `raw.player_game_logs`, renames abbreviated columns to readable names, adds `home_away`
+- `staging.stg_team_game_logs` — from `raw.team_game_logs`, same pattern as player game logs
+
+All staging models use dedup pattern: `row_number() over (partition by <natural_key> order by ingested_at desc) where rn = 1`
+
+28 dbt tests defined and passing (unique, not_null, accepted_values, unique_combination_of_columns).
+
+### Analytics Tables
+Not yet created — these will be built by dbt analytics models (next phase).
 
 ---
 
@@ -82,16 +94,25 @@ Not yet created — these will be built by dbt models later in Phase 1 Week 2-3.
 hoopstack/
 ├── .gitignore
 ├── README.md
-├── ingestion/       # Python ETL scripts (next up)
-├── dbt/
+├── ingestion/              # Python ETL scripts
+├── dbt/                    # dbt project (initialized 2026-03-03)
+│   ├── dbt_project.yml
+│   ├── packages.yml
+│   ├── package-lock.yml
+│   ├── macros/
+│   │   └── generate_schema_name.sql
 │   ├── models/
-│   │   ├── staging/
-│   │   └── analytics/
-│   └── tests/
-├── api/             # FastAPI (Phase 2)
-├── frontend/        # Next.js + D3.js (Phase 2)
-├── scripts/         # Utility scripts, backfills
-└── docs/            # Architecture diagrams, notes
+│   │   ├── staging/        # 5 staging models + sources/tests YAML
+│   │   └── analytics/      # placeholder, models TBD
+│   ├── seeds/
+│   ├── snapshots/
+│   ├── tests/
+│   └── analyses/
+├── dbt-venv/               # Python venv for dbt (gitignored)
+├── api/                    # FastAPI (Phase 2)
+├── frontend/               # Next.js + D3.js (Phase 2)
+├── scripts/                # Utility scripts, backfills
+└── docs/                   # Architecture diagrams, notes
 ```
 
 ### Commits
@@ -121,12 +142,12 @@ git push origin main
 - [x] Week 1-2: Game tier backfill complete (2023-24, 2024-25, 2025-26) — All shots + PBP loaded, 0 errors on final run
 - [ ] ~~Week 1-2: Full historical backfill 2010-11 through present~~ — DEFERRED (2023-2025 is sufficient for portfolio)
 - [ ] ~~Week 1-2: Per-game box scores~~ — DROPPED (NBA API throttles too aggressively; game_logs cover box score needs)
-- [ ] Week 1: Initialize dbt project with source definitions — **NEXT UP**
+- [x] Week 1: Initialize dbt project with source definitions — DONE (2026-03-03)
+- [x] Week 2-3: Build dbt staging models — DONE (2026-03-03, 5 views in staging schema)
+- [x] Week 2-3: Write dbt tests — DONE (2026-03-03, 28 tests all passing)
+- [x] Week 2-3: Generate dbt docs — DONE (2026-03-03, catalog + lineage graph)
+- [ ] Week 2-3: Build dbt analytics models — **NEXT UP**
 - [ ] Week 1-2: Set up Airflow/Dagster/cron for nightly ingestion
-- [ ] Week 2-3: Build dbt staging models
-- [ ] Week 2-3: Build dbt analytics models
-- [ ] Week 2-3: Write dbt tests
-- [ ] Week 2-3: Generate dbt docs
 
 ---
 
@@ -220,10 +241,53 @@ psql "host=192.168.1.22 port=5434 dbname=nba_analytics user=nba_admin password=E
 The stale checkpoint cleanup script was run before the final backfill. Removed 460 stale PBP entries. This issue is resolved — the code fix (errors no longer checkpointed) plus the one-time cleanup means checkpoints are now accurate.
 
 ### What Comes Next
-All ingestion is complete for 2023-2025. The data foundation is in place.
-1. **Next:** dbt project initialization — source definitions, staging models, analytics models
+All ingestion is complete for 2023-2025. dbt staging layer is complete and validated.
+1. **Next:** Build dbt analytics (gold) models — `fct_player_game_advanced`, `agg_shot_expected_value`, `agg_lineup_stats`, `agg_player_rolling_stats`
 2. **Later:** Set up nightly incremental ingestion (cron/Airflow) for ongoing 2025-26 season games
 3. **Later (optional):** Historical backfill 2010-2022 if needed for trend analysis features
+
+---
+
+## dbt Project Setup (completed 2026-03-03)
+
+### Environment
+- **dbt-core:** 1.11.6, **dbt-postgres:** 1.10.0
+- **venv:** `dbt-venv/` in project root (gitignored)
+- **Profile:** `~/.dbt/profiles.yml` — password hardcoded (not env var, because `!!` in the password breaks shell `export` even with single quotes)
+- **Packages:** dbt_utils 1.3.3
+
+### How to Run
+```bash
+cd /Users/cameronrezek/Documents/projects/hoopstack/dbt
+source ../dbt-venv/bin/activate
+dbt run    # create/refresh staging views
+dbt test   # run all 28 tests
+dbt docs generate  # rebuild docs
+dbt docs serve     # view docs locally at http://localhost:8080
+```
+
+### Key Design Decisions
+- **Staging = views** (lightweight, always fresh from raw). Analytics = tables (pre-computed aggregations).
+- **Custom `generate_schema_name` macro** ensures models go to `staging` and `analytics` schemas directly (not `staging_staging`).
+- **Dedup pattern** on all staging models: `row_number() over (partition by <natural_key> order by ingested_at desc) where rn = 1`
+- **PBP score_differential** uses `nullif(score_home, '')::integer` to handle empty strings in V3 VARCHAR columns.
+- **Test YAML** uses `arguments:` nesting for generic test params (required by dbt 1.11, avoids deprecation warnings).
+- **Game log column names verified** against `information_schema.columns` before writing staging SQL. Confirmed they match the plan (lowercased NBA API column names: `pts`, `fgm`, `wl`, etc.).
+
+### Staging Models
+| Model | Source | Dedup Key | Rows (approx) |
+|-------|--------|-----------|---------------|
+| `stg_players` | `common_player_info` | `person_id` | ~530 |
+| `stg_shot_charts` | `shot_chart_detail` | `(game_id, game_event_id, player_id)` | ~560k |
+| `stg_play_by_play` | `play_by_play` | `(game_id, action_number)` | ~1.16M |
+| `stg_player_game_logs` | `player_game_logs` | `(game_id, player_id)` | ~74k |
+| `stg_team_game_logs` | `team_game_logs` | `(game_id, team_id)` | ~6.9k |
+
+### Tests (28 total, all passing)
+- Uniqueness: `stg_players.player_id`
+- Not-null: key columns on all 5 models
+- Accepted values: `shot_value` (2/3), `win_loss` (W/L), `home_away` (home/away/unknown)
+- Composite uniqueness (dbt_utils): natural keys on shot_charts, play_by_play, player_game_logs, team_game_logs
 
 ---
 
