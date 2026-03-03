@@ -117,7 +117,8 @@ git push origin main
 - [x] Week 1: Set up GitHub repo with README — DONE
 - [x] Week 1-2: Write Python ingestion scripts — DONE
 - [x] Week 1-2: Ingestion code deployed to Mac Mini for long-running backfill
-- [x] Week 1-2: Smoke test backfill (2023-2025) — Reference + season tiers DONE; game tier IN PROGRESS (shots + PBP)
+- [x] Week 1-2: Smoke test backfill (2023-2025) — Reference + season tiers DONE; game tier DONE (shots + PBP)
+- [x] Week 1-2: Game tier backfill complete (2023-24, 2024-25, 2025-26) — All shots + PBP loaded, 0 errors on final run
 - [ ] ~~Week 1-2: Full historical backfill 2010-11 through present~~ — DEFERRED (2023-2025 is sufficient for portfolio)
 - [ ] ~~Week 1-2: Per-game box scores~~ — DROPPED (NBA API throttles too aggressively; game_logs cover box score needs)
 - [ ] Week 1: Initialize dbt project with source definitions — **NEXT UP**
@@ -129,7 +130,7 @@ git push origin main
 
 ---
 
-## Current Backfill Status (as of 2026-03-02)
+## Current Backfill Status (as of 2026-03-03)
 
 ### Scope Decision (2026-03-02)
 **Per-game box scores (BoxScoreTraditionalV3, BoxScoreAdvancedV3, BoxScoreMiscV3) have been dropped from scope.** Each game requires 3 API calls for box scores, causing aggressive NBA API throttling after ~200 games (~600 calls). The `player_game_logs` and `team_game_logs` tables (loaded via the season-level tier) already contain per-game box score stats (pts, reb, ast, fg%, etc.) and are sufficient for the analytics layer. Per-game advanced/misc metrics are supplementary and not worth the API pain.
@@ -143,27 +144,31 @@ The V3 migration script (`scripts/migrate_box_scores_v3.sql`) was run on 2026-03
 - **Command:** `python run_backfill.py --start 2023 --end 2025 --tier game`
 - **Process:** Running via `nohup` (check with `ps aux | grep run_backfill`)
 - **Log:** `~/ingestion-hoopstack/ingestion/backfill.log`
-- **Rate limit delay:** 3.0 seconds (bumped from 1.5 to avoid NBA API throttling)
+- **Rate limit delay:** 5.0 seconds (bumped from 3.0 after sustained throttling during 2025-26 ingestion)
 
-### Data Loaded (as of 2026-03-02)
-| Table | Rows | Games | Notes |
-|-------|------|-------|-------|
-| `raw.shot_chart_detail` | 434,471 | 2,439 | 2023-24 ✅ (1,213), 2024-25 ✅ (1,226), 2025-26 not started |
-| `raw.play_by_play` | 925,564 | 2,000 | 2023-24 ~64% (771/1,213), 2024-25 ✅ (1,229), 2025-26 not started |
-| `raw.player_game_logs` | 74,809 | 3,484 | All 3 seasons ✅ |
-| `raw.team_game_logs` | 6,968 | 3,484 | All 3 seasons ✅ |
-| `raw.league_dash_player_stats` | 2,111 | — | All 3 seasons ✅ |
-| `raw.lineup_stats` | 8,318 | — | All 3 seasons ✅ |
-| `raw.common_player_info` | 530 | — | ✅ |
-| `raw.team_details` | 30 | — | ✅ |
-| `raw.draft_history` | 8,235 | — | ✅ |
+### Data Loaded (as of 2026-03-03) — GAME TIER COMPLETE
+| Table | Rows (approx) | Seasons | Notes |
+|-------|--------------|---------|-------|
+| `raw.shot_chart_detail` | ~560k+ | 2023-24 ✅, 2024-25 ✅, 2025-26 ✅ | All 3 seasons complete |
+| `raw.play_by_play` | ~1.16M+ | 2023-24 ✅, 2024-25 ✅, 2025-26 ✅ | All 3 seasons complete |
+| `raw.player_game_logs` | 74,809 | All 3 seasons ✅ | |
+| `raw.team_game_logs` | 6,968 | All 3 seasons ✅ | |
+| `raw.league_dash_player_stats` | 2,111 | All 3 seasons ✅ | |
+| `raw.lineup_stats` | 8,318 | All 3 seasons ✅ | |
+| `raw.common_player_info` | 530 | ✅ | |
+| `raw.team_details` | 30 | ✅ | |
+| `raw.draft_history` | 8,235 | ✅ | |
 | `raw.box_score_*` | 0 | — | Dropped from scope (see above) |
 
-### What's Still Running
-The game tier backfill is running on the Mac Mini as of 2026-03-02. It needs to finish:
-- PBP for 2023-24 (~442 remaining games)
-- Shots + PBP for 2025-26 (~858 games)
-- Box scores will be skipped (checkpointed as done or will fail harmlessly)
+Row counts for shots and PBP are approximate (estimated from ingestion logs). Run the DB check query below to get exact counts.
+
+### Backfill Complete (2026-03-03)
+The game tier backfill finished on 2026-03-03 at 08:15. Final run completed in ~4 minutes with 0 errors:
+- 2023-24: All shots + PBP ✅ (skipped from checkpoints)
+- 2024-25: All shots + PBP ✅ (skipped from checkpoints)
+- 2025-26: Shots ✅ (3,292 rows final batch + ~125k from prior runs), PBP ✅ (10,308 rows final batch)
+- 6,986 total checkpointed items
+- Box scores skipped (commented out in `run_backfill.py`)
 
 ### Throttling History
 After completing all 2024-25 shot charts (1,230 games) and ~100 PBP games, the NBA API started aggressively throttling. Every subsequent PBP request hit a 30s timeout, burned through 3 retries, and failed.
@@ -174,6 +179,9 @@ After completing all 2024-25 shot charts (1,230 games) and ~100 PBP games, the N
 - Added **consecutive failure cooldown**: after 3 games fail in a row, the process pauses for 5 minutes to let the API rate limit window reset, then resumes. Configurable via `COOLDOWN_THRESHOLD` and `COOLDOWN_SECONDS` in `.env`.
 - Added **explicit API timeout**: 60s (up from nba_api default of 30s) via `API_TIMEOUT` in `.env`.
 - Changes applied to all three per-game ingestors (shots, PBP, box scores).
+
+**2025-26 throttling (2026-03-02):**
+During the 2025-26 shots ingestion, sustained throttling kicked in around game 500/906. Even the 5-minute cooldown wasn't enough — the API continued timing out after recovery attempts. Multiple restart attempts over 4+ hours (with 1-hour waits between) still hit throttling. **Resolution:** bumped `REQUEST_DELAY` from 3.0 to 5.0 seconds and ran overnight when API traffic was lower. The final run the next morning (2026-03-03 08:12) completed with 0 errors in ~4 minutes.
 
 ### Issues Hit & Fixed
 1. **PlayByPlayV2 deprecated:** NBA API no longer returns data for the V2 endpoint (returns empty JSON, causes `KeyError: 'resultSet'`). Fixed by switching to **PlayByPlayV3** in `ingestors/play_by_play.py`.
@@ -186,6 +194,9 @@ After completing all 2024-25 shot charts (1,230 games) and ~100 PBP games, the N
 8. **Box score V3 migration not applied (2026-03-02):** The code was updated to use V3 endpoints (`person_id`, V3 column names) but the migration script `scripts/migrate_box_scores_v3.sql` was never run on the database. Tables still had V2 schema (`player_id`). Every box score insert failed with `column "person_id" does not exist`. Fixed by running the migration script. Moot now since box scores are dropped from scope.
 9. **V3 VARCHAR too short (2026-03-02):** After running the V3 migration, `name_i VARCHAR(20)` was too short for some player names. Widened `name_i` and `minutes` to `VARCHAR(50)` and `jersey_num`/`position` to `VARCHAR(20)` across all box score tables. Again moot since box scores are dropped.
 10. **Box scores dropped from scope (2026-03-02):** Per-game box scores require 3 API calls per game, causing the NBA API to throttle after ~200 games. `player_game_logs` and `team_game_logs` (loaded via the season tier with no throttling issues) already contain per-game traditional stats and are sufficient for the analytics layer.
+11. **Box scores commented out in run_backfill.py (2026-03-02):** The `ingest_box_scores_for_season()` call in `run_game_tier()` was commented out so the game tier only runs shots + PBP. Without this, the backfill would waste hours on doomed box score API calls.
+12. **Sustained API throttling during 2025-26 (2026-03-02):** After ~500 shot chart calls for 2025-26, the NBA API throttled hard enough that even 5-minute cooldowns didn't help. Multiple restarts over 4+ hours failed. `REQUEST_DELAY` bumped from 3.0s to 5.0s and the backfill was run overnight when API load was lower. Completed cleanly the next morning.
+13. **Stale checkpoint cleanup (2026-03-02):** Ran the checkpoint cleanup script before resuming the backfill. Removed 460 stale PBP checkpoints (from earlier runs where games were checkpointed despite API errors). 4,659 valid checkpoints remained.
 
 ### Updated raw.play_by_play Schema (V3)
 The table was dropped and recreated with these columns (different from V2):
@@ -198,60 +209,20 @@ video_available, shot_value, action_id, ingested_at, source
 ```
 Unique constraint: `(game_id, action_number)`
 
-### To Resume / Monitor
+### Verify DB Row Counts
 ```bash
-# Check if it's still running
-ps aux | grep run_backfill
-
-# Watch the log
-tail -f ~/ingestion-hoopstack/ingestion/backfill.log
-
-# If it died, restart (it resumes from checkpoints)
-cd ~/ingestion-hoopstack/ingestion
-source .venv/bin/activate
-nohup python run_backfill.py --start 2023 --end 2025 --tier game > backfill.log 2>&1 &
-
-# Check DB progress
+# Get exact row counts (backfill is done, use this to verify)
 psql "host=192.168.1.22 port=5434 dbname=nba_analytics user=nba_admin password=ElephantLoopy!!84" \
-  -c "SELECT 'shots' as tbl, COUNT(*) FROM raw.shot_chart_detail UNION ALL SELECT 'pbp', COUNT(*) FROM raw.play_by_play UNION ALL SELECT 'box_trad', COUNT(*) FROM raw.box_score_traditional UNION ALL SELECT 'box_adv', COUNT(*) FROM raw.box_score_advanced UNION ALL SELECT 'box_misc', COUNT(*) FROM raw.box_score_misc;"
+  -c "SELECT 'shots' as tbl, COUNT(*) FROM raw.shot_chart_detail UNION ALL SELECT 'pbp', COUNT(*) FROM raw.play_by_play UNION ALL SELECT 'player_game_logs', COUNT(*) FROM raw.player_game_logs UNION ALL SELECT 'team_game_logs', COUNT(*) FROM raw.team_game_logs;"
 ```
 
-### Known Issue: Stale Checkpoints on Failure (fixed in code, but existing checkpoints need cleanup)
-The old code checkpointed games as "done" even when they errored with 0 rows. This is now fixed — errors are no longer checkpointed. But stale entries from previous runs need to be cleaned:
-```bash
-cd ~/ingestion-hoopstack/ingestion && source .venv/bin/activate
-python -c "
-import json
-from db import get_conn
+### Stale Checkpoint Cleanup (completed 2026-03-02)
+The stale checkpoint cleanup script was run before the final backfill. Removed 460 stale PBP entries. This issue is resolved — the code fix (errors no longer checkpointed) plus the one-time cleanup means checkpoints are now accurate.
 
-# Find games that actually have data
-with get_conn() as conn:
-    with conn.cursor() as cur:
-        cur.execute('SELECT DISTINCT game_id FROM raw.play_by_play')
-        real_pbp = {row[0] for row in cur.fetchall()}
-        cur.execute('SELECT DISTINCT game_id FROM raw.box_score_traditional')
-        real_box = {row[0] for row in cur.fetchall()}
-
-with open('checkpoints/game_tier.json') as f:
-    data = json.load(f)
-
-before = len(data['completed'])
-data['completed'] = [
-    x for x in data['completed']
-    if (not x.startswith('pbp_') or x.replace('pbp_', '') in real_pbp)
-    and (not x.startswith('box_') or x.replace('box_', '') in real_box)
-]
-after = len(data['completed'])
-
-with open('checkpoints/game_tier.json', 'w') as f:
-    json.dump(data, f, indent=2)
-print(f'Cleaned {before - after} stale checkpoints ({after} valid remain)')
-"
-```
-
-### What Comes After the 2023-2025 Game Tier
-1. Verify shots + PBP data landed for all 3 seasons (2023-24, 2024-25, 2025-26)
-2. **Next:** dbt project setup, staging models, analytics models
+### What Comes Next
+All ingestion is complete for 2023-2025. The data foundation is in place.
+1. **Next:** dbt project initialization — source definitions, staging models, analytics models
+2. **Later:** Set up nightly incremental ingestion (cron/Airflow) for ongoing 2025-26 season games
 3. **Later (optional):** Historical backfill 2010-2022 if needed for trend analysis features
 
 ---
@@ -268,6 +239,8 @@ print(f'Cleaned {before - after} stale checkpoints ({after} valid remain)')
 - `nba_client.py` — Now passes `timeout=API_TIMEOUT` to all `nba_api` endpoint constructors (was relying on library default of 30s).
 - `ingestors/play_by_play.py`, `shot_charts.py`, `box_scores.py` — Added consecutive failure cooldown: after `COOLDOWN_THRESHOLD` failures in a row, sleeps for `COOLDOWN_SECONDS` to let the NBA API rate limit window reset.
 - `.env.example` — Updated with `API_TIMEOUT`, `COOLDOWN_THRESHOLD`, `COOLDOWN_SECONDS` settings.
+- `run_backfill.py` — `ingest_box_scores_for_season()` call commented out in `run_game_tier()` (2026-03-02). Game tier now only runs shots + PBP.
+- `config.py` — `REQUEST_DELAY` bumped from 3.0 to 5.0 seconds (2026-03-02) to handle sustained NBA API throttling during large ingestion runs.
 
 ---
 

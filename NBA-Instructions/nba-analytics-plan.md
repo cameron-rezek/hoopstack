@@ -832,3 +832,5 @@ That's a comprehensive skill demonstration that very few portfolio projects achi
 7. **Blog component**: Yes, built into the Next.js site using MDX. Analytical write-ups using the platform's own data, serving as both content marketing and a demonstration of communication skills.
 
 8. **Future expansion path**: When ready, expanding to 2010+ involves running the existing backfill script for earlier seasons, then running `dbt build` to rebuild transformations. Per-game box scores could be re-attempted with more aggressive batch resting (pause 60s every 50 games) if the advanced metrics are needed.
+
+9. **Ingestion complete (2026-03-03)**: All three seasons (2023-24, 2024-25, 2025-26) are fully loaded — shots, PBP, game logs, reference data, season stats. The data foundation (Phase 1 Week 1-2 ETL work) is done. Next step is dbt project initialization.

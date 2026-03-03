@@ -60,13 +60,11 @@ python run_backfill.py --reset
 |------|--------------|-------|-----------|
 | `reference` | Teams, players, draft history | ~10 min | ~500 (one per active player + 30 teams) |
 | `season` | Game logs, lineups, player aggregate stats | ~30 min for 15 seasons | ~4 per season (regular + playoffs, players + teams) |
-| `game` | Shots, play-by-play, box scores (trad/adv/misc) | **Several hours** | ~5 per game, ~1,300 games per season |
+| `game` | Shots, play-by-play (box scores removed) | **Several hours** | ~2 per game, ~1,300 games per season |
 
-The game tier is the bottleneck. With 1.5s delays between API calls, expect roughly:
-- 2-season smoke test: ~3-4 hours
-- 15-season full backfill: ~20-30 hours total
-
-The plan's original "3-5 hours" estimate was likely accounting for just the season-level endpoints, not the per-game data.
+The game tier is the bottleneck. With 5.0s delays between API calls, expect roughly:
+- 3-season backfill: ~6-10 hours (may need overnight run if API throttles)
+- Box scores have been removed from the game tier (commented out in `run_backfill.py`) — `player_game_logs` and `team_game_logs` cover box score needs.
 
 ## Checkpointing (Resumable Backfills)
 
@@ -86,9 +84,9 @@ If something looks off during the load, bump `LOG_LEVEL=DEBUG` in your `.env` an
 2. `pip install -r requirements.txt`
 3. Run `reference` tier for the smoke test range (--start 2023 --end 2024) and verify data in pgAdmin
 4. Run `season` tier for the same range, verify game logs landed
-5. Run `game` tier for the same range, let it chug through the ~2,600 games
-6. Spot check a few games in pgAdmin: shots, pbp, box scores all present
-7. If everything looks clean, kick off the full backfill (`python run_backfill.py`)
+5. Run `game` tier for the same range, let it chug through the ~2,600 games (best run overnight)
+6. Spot check a few games in pgAdmin: shots + PBP present
+7. If everything looks clean, expand to full target range (`python run_backfill.py --start 2023 --end 2025 --tier game`)
 8. Once backfill is done, the `run_daily.py` script handles nightly incremental pulls
 
 ## Nightly Ingestion (Later)
@@ -112,6 +110,6 @@ Cron example:
 ## Things to Watch For
 
 - **Raw table column mismatches**: The API might return columns that don't exist in your raw tables (or your tables might have columns the API doesn't populate). The `align_dataframe_to_table` function handles this, but worth verifying with the smoke test.
-- **Rate limiting**: Default delay is now 3.0s (bumped from 1.5 after hitting NBA API throttling). Can be adjusted via `REQUEST_DELAY_SECONDS` in `.env`.
-- **The `"to"` column**: Your progress doc mentions box_score_traditional and box_score_team_traditional have a quoted `"to"` column because TO is a reserved word. The bulk insert function quotes all column names so this should work, but worth verifying on the first box score insert.
+- **Rate limiting**: Default delay is now 5.0s (bumped from 3.0 after sustained NBA API throttling during 2025-26 ingestion). Can be adjusted via `REQUEST_DELAY_SECONDS` in `.env`. The NBA API throttles aggressively after ~500-600 rapid calls — running overnight helps.
+- **Box scores removed**: Per-game box scores are commented out in `run_backfill.py`. The tables exist with V3 schemas but are empty. `player_game_logs` + `team_game_logs` cover box score needs.
 - **Game IDs**: The game tier relies on game IDs from the team_game_logs table. Always run the season tier before the game tier, or the game tier won't know which games to pull.
