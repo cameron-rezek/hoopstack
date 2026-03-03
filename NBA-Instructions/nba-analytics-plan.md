@@ -834,3 +834,5 @@ That's a comprehensive skill demonstration that very few portfolio projects achi
 8. **Future expansion path**: When ready, expanding to 2010+ involves running the existing backfill script for earlier seasons, then running `dbt build` to rebuild transformations. Per-game box scores could be re-attempted with more aggressive batch resting (pause 60s every 50 games) if the advanced metrics are needed.
 
 9. **Ingestion complete (2026-03-03)**: All three seasons (2023-24, 2024-25, 2025-26) are fully loaded — shots, PBP, game logs, reference data, season stats. The data foundation (Phase 1 Week 1-2 ETL work) is done. Next step is dbt project initialization.
+
+10. **FastAPI backend complete (2026-03-03)**: 20 read-only endpoints serving all analytics data via asyncpg (no ORM). Uses raw SQL with offset pagination (`COUNT(*) OVER()`). No auth/Redis/rate limiting yet — deferred per plan. Teams served from `raw.team_details` since `dims.dim_teams` is empty. Season ID format mismatch handled with `LIKE '%year'` conversion. 8 database indexes added for query performance.

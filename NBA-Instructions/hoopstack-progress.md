@@ -24,10 +24,16 @@ NBA analytics platform built as a portfolio piece. Full plan is in the project f
 - Had a permissions issue on first start — fixed with `chown -R 5050:5050 /mnt/cache/appdata/pgadmin`
 - Connected to postgres-nba successfully
 
+### FastAPI Backend (completed 2026-03-03)
+- Running locally via uvicorn (not yet containerized)
+- venv: `api-venv/`, deps in `api/requirements.txt`
+- Start: `source api-venv/bin/activate && uvicorn api.main:app --reload --port 8000`
+- Docs: `http://localhost:8000/docs`
+
 ### Containers NOT yet set up
-- Redis (cache layer, optional for now, needed in Phase 2)
-- Airflow/Dagster (orchestration, needed later in Phase 1 for scheduling)
-- FastAPI (Phase 2)
+- Redis (cache layer, optional for now)
+- Airflow/Dagster (orchestration, needed later for scheduling)
+- FastAPI Docker container (currently running locally)
 
 ---
 
@@ -115,9 +121,19 @@ hoopstack/
 │   ├── tests/
 │   └── analyses/
 ├── dbt-venv/               # Python venv for dbt (gitignored)
-├── api/                    # FastAPI (Phase 2)
-├── frontend/               # Next.js + D3.js (Phase 2)
-├── scripts/                # Utility scripts, backfills
+├── api/                    # FastAPI backend (completed 2026-03-03)
+│   ├── main.py             # App entry point, lifespan, CORS, routers
+│   ├── config.py           # pydantic-settings, DB config from .env
+│   ├── database.py         # asyncpg connection pool
+│   ├── dependencies.py     # Pagination, DB pool dependency
+│   ├── exceptions.py       # NotFoundError, DatabaseError
+│   ├── models/             # Pydantic response schemas (8 files)
+│   ├── routers/            # Endpoint definitions (9 files)
+│   ├── queries/            # Raw SQL by domain (7 files)
+│   └── .env                # DB credentials (gitignored)
+├── api-venv/               # Python venv for API (gitignored)
+├── frontend/               # Next.js + D3.js (Phase 2, not yet started)
+├── scripts/                # Utility scripts, backfills, index SQL
 └── docs/                   # Architecture diagrams, notes
 ```
 
@@ -137,7 +153,7 @@ git push origin main
 
 ## Where We Are in the Plan
 
-**Phase 1: Data Foundation (2-3 weeks)**
+**Phase 1: Data Foundation (2-3 weeks) — COMPLETE**
 
 - [x] Week 1: Spin up PostgreSQL, pgAdmin, Redis containers — DONE (Redis deferred)
 - [x] Week 1: Design and create raw, staging, analytics, dims schemas — DONE
@@ -149,11 +165,22 @@ git push origin main
 - [ ] ~~Week 1-2: Full historical backfill 2010-11 through present~~ — DEFERRED (2023-2025 is sufficient for portfolio)
 - [ ] ~~Week 1-2: Per-game box scores~~ — DROPPED (NBA API throttles too aggressively; game_logs cover box score needs)
 - [x] Week 1: Initialize dbt project with source definitions — DONE (2026-03-03)
-- [x] Week 2-3: Build dbt staging models — DONE (2026-03-03, 5 views in staging schema)
+- [x] Week 2-3: Build dbt staging models — DONE (2026-03-03, 6 views in staging schema)
 - [x] Week 2-3: Write dbt tests — DONE (2026-03-03, 51 tests all passing)
 - [x] Week 2-3: Generate dbt docs — DONE (2026-03-03, catalog + lineage graph)
 - [x] Week 2-3: Build dbt analytics models — DONE (2026-03-03, 4 tables in analytics schema)
 - [ ] Week 1-2: Set up Airflow/Dagster/cron for nightly ingestion
+
+**Phase 2: API + Core Visualizations (3-4 weeks) — API DONE, frontend next**
+
+- [x] Week 4: FastAPI project scaffolding — DONE (2026-03-03)
+- [x] Week 4: Core endpoints (players, teams, games, shots, lineups) — DONE (20 endpoints)
+- [x] Week 4: Query parameterization, filtering, pagination — DONE
+- [x] Week 4: Auto-generated OpenAPI docs verified — DONE (http://localhost:8000/docs)
+- [x] Week 4: Database indexes for API query performance — DONE (8 indexes)
+- [ ] Week 5-6: Next.js frontend scaffolding + shot charts
+- [ ] Week 7: Player comparison dashboard
+- [ ] Week 7: Tableau Public portfolio (parallel track)
 
 ---
 
@@ -247,10 +274,12 @@ psql "host=192.168.1.22 port=5434 dbname=nba_analytics user=nba_admin password=E
 The stale checkpoint cleanup script was run before the final backfill. Removed 460 stale PBP entries. This issue is resolved — the code fix (errors no longer checkpointed) plus the one-time cleanup means checkpoints are now accurate.
 
 ### What Comes Next
-All ingestion is complete for 2023-2025. dbt staging + analytics layers are complete and validated.
-1. **Next:** Phase 2 — FastAPI backend + Next.js/D3.js frontend
+All ingestion is complete for 2023-2025. dbt staging + analytics layers are complete and validated. FastAPI backend is live with 20 endpoints.
+1. **Next:** Phase 2 continued — Next.js/D3.js frontend (shot charts, player dashboards, game flow)
 2. **Later:** Set up nightly incremental ingestion (cron/Airflow) for ongoing 2025-26 season games
-3. **Later (optional):** Historical backfill 2010-2022 if needed for trend analysis features
+3. **Later:** Redis caching for expensive API queries, auth if needed
+4. **Later (optional):** Historical backfill 2010-2022 if needed for trend analysis features
+5. **Later (optional):** Populate `dims.dim_teams` with conference, division, and team colors for richer team data
 
 ---
 
@@ -315,6 +344,97 @@ stg_lineup_stats ─────────> agg_lineup_stats
 - Not-null: key columns on all 10 models
 - Accepted values: `shot_value` (2/3), `win_loss` (W/L), `home_away` (home/away/unknown), `sample_size_flag` (very_small/small/moderate/reliable)
 - Composite uniqueness (dbt_utils): natural keys on all models with composite keys
+
+---
+
+## FastAPI Backend (completed 2026-03-03)
+
+### Environment
+- **Python venv:** `api-venv/` in project root (gitignored)
+- **Dependencies:** fastapi 0.135.1, uvicorn 0.41.0, asyncpg 0.31.0, pydantic 2.12.5, pydantic-settings 2.13.1
+- **Config:** `api/.env` (DB creds loaded via pydantic-settings; password single-quoted because `!!` breaks shell export)
+
+### How to Run
+```bash
+cd /Users/cameronrezek/Documents/projects/hoopstack
+source api-venv/bin/activate
+uvicorn api.main:app --reload --port 8000
+# Docs at http://localhost:8000/docs
+# Health check at http://localhost:8000/health
+```
+
+### Architecture
+- **No ORM** — Raw SQL via asyncpg for full transparency and performance
+- **asyncpg connection pool** — min 2, max 10 connections, created/closed via FastAPI lifespan
+- **Offset pagination** with `COUNT(*) OVER()` window function (avoids separate count query)
+- **CORS** allows `localhost:3000` (for future Next.js frontend)
+- **No auth, no Redis, no rate limiting** — those come later per the plan
+
+### Endpoints (20 total)
+
+| Method | Path | Source | Paginated | Notes |
+|--------|------|--------|-----------|-------|
+| GET | `/health` | analytics/staging tables | No | Row counts + DB status |
+| GET | `/players` | `staging.stg_players` | Yes | search, team_id, position filters |
+| GET | `/players/{player_id}` | `staging.stg_players` | No | Full player bio |
+| GET | `/players/{player_id}/games` | `analytics.fct_player_game_advanced` | Yes | season, season_type filters |
+| GET | `/players/{player_id}/shots` | `staging.stg_shot_charts` | Yes | season, season_type, game_id filters |
+| GET | `/players/{player_id}/shot-quality` | `analytics.agg_shot_quality` | No | Returns all seasons |
+| GET | `/players/{player_id}/rolling` | `analytics.agg_player_rolling_stats` | No | season, season_type filters |
+| GET | `/teams` | `raw.team_details` | No | All 30 teams |
+| GET | `/teams/{team_id}` | `raw.team_details` | No | Single team |
+| GET | `/teams/{team_id}/games` | `staging.stg_team_game_logs` | Yes | season, season_type filters |
+| GET | `/teams/{team_id}/lineups` | `analytics.agg_lineup_stats` | Yes | season, season_type, min_minutes |
+| GET | `/games/{game_id}` | `staging.stg_team_game_logs` | No | Home/away join for game summary |
+| GET | `/games/{game_id}/players` | `analytics.fct_player_game_advanced` | No | All player stats for a game |
+| GET | `/games/{game_id}/shots` | `staging.stg_shot_charts` | Yes | period, team_id filters |
+| GET | `/games/{game_id}/pbp` | `staging.stg_play_by_play` | Yes | period filter |
+| GET | `/shot-quality` | `analytics.agg_shot_quality` | Yes | Leaderboard, sortable, min_shots filter |
+| GET | `/lineups` | `analytics.agg_lineup_stats` | Yes | Leaderboard, sortable, min_minutes filter |
+| GET | `/rolling` | `analytics.agg_player_rolling_stats` | Yes | player_id, season, team_id filters |
+| GET | `/pbp` | `staging.stg_play_by_play` | Yes | game_id, period, player_id, team_id |
+| GET | `/seasons` | `analytics.agg_shot_quality` | No | Returns ["2025-26", "2024-25", "2023-24"] |
+
+### Key Design Notes
+
+**Season ID format mismatch:**
+- `fct_player_game_advanced`, `agg_player_rolling_stats`, `stg_player_game_logs`, `stg_team_game_logs` use `season_id` in numeric format: "22024" (2=Regular Season), "42024" (4=Playoffs)
+- `agg_shot_quality`, `agg_lineup_stats`, `stg_shot_charts` use `season` in human format: "2024-25"
+- The API accepts "2024-25" everywhere and converts to `LIKE '%2024'` for tables with numeric `season_id`
+
+**Teams served from raw.team_details (not dims.dim_teams):**
+- `dims.dim_teams` exists but is empty (was never populated with conference, division, colors)
+- The API falls back to `raw.team_details` which has all 30 teams with nickname, abbreviation, city, arena
+- Conference, division, primary_color, secondary_color, logo_url are returned as null
+- TODO: Populate `dims.dim_teams` or add a dbt model for teams
+
+### Database Indexes (applied 2026-03-03)
+Script: `scripts/add_api_indexes.sql` (8 indexes)
+```sql
+-- Raw tables (backing staging views)
+idx_raw_shots_player_season ON raw.shot_chart_detail (player_id, season)
+idx_raw_shots_game          ON raw.shot_chart_detail (game_id)
+idx_raw_pbp_game            ON raw.play_by_play (game_id)
+-- Analytics tables
+idx_fct_pga_player_season   ON analytics.fct_player_game_advanced (player_id, season_id)
+idx_fct_pga_game            ON analytics.fct_player_game_advanced (game_id)
+idx_rolling_player_season   ON analytics.agg_player_rolling_stats (player_id, season_id)
+idx_lineups_team_season     ON analytics.agg_lineup_stats (team_id, season)
+idx_shot_quality_player     ON analytics.agg_shot_quality (player_id)
+```
+
+### Verified Endpoints (sample responses)
+- `GET /health` → `{"status": "healthy", "database": "connected", "row_counts": {...}}`
+- `GET /players?search=lebron` → LeBron James (player_id: 2544, LAL)
+- `GET /players/2544/games?season=2024-25` → 75 games (Regular Season + Playoffs)
+- `GET /players/2544/shots?season=2024-25` → 1,270 shots
+- `GET /players/2544/shot-quality` → 3 season entries with PAX metrics
+- `GET /teams` → 30 teams
+- `GET /games/0022401185` → LAL 140, HOU 109 (2025-04-11)
+- `GET /games/0022401185/pbp` → 432 play-by-play events
+- `GET /shot-quality?season=2024-25&min_shots=100` → 440 players, sorted by pax_per_100_shots
+- `GET /lineups?season=2024-25&min_minutes=200` → 34 lineups
+- `GET /seasons` → ["2025-26", "2024-25", "2023-24"]
 
 ---
 

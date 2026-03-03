@@ -10,6 +10,7 @@ venv/
 .venv/
 env/
 dbt-venv/
+api-venv/
 
 # Environment variables (never commit credentials)
 .env
