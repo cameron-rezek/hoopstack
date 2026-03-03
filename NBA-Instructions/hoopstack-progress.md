@@ -69,19 +69,25 @@ Note: the `"to"` column in box_score_traditional and box_score_team_traditional 
 - `dims.dim_game_types` (seeded with: Regular Season, Playoffs, All Star, Pre Season, Play-In)
 
 ### Staging Views Created by dbt (2026-03-03)
-5 views in the `staging` schema, created via `dbt run`:
+6 views in the `staging` schema, created via `dbt run`:
 - `staging.stg_players` — deduplicated from `raw.common_player_info`
 - `staging.stg_shot_charts` — from `raw.shot_chart_detail`, adds computed `distance_feet`, `shot_angle`, `game_minutes_elapsed`, `is_location_reliable`, `shot_value`
 - `staging.stg_play_by_play` — from `raw.play_by_play` (V3), adds `score_differential`, renames `person_id` -> `player_id`
 - `staging.stg_player_game_logs` — from `raw.player_game_logs`, renames abbreviated columns to readable names, adds `home_away`
 - `staging.stg_team_game_logs` — from `raw.team_game_logs`, same pattern as player game logs
+- `staging.stg_lineup_stats` — from `raw.lineup_stats`, renames abbreviated columns, drops rank columns
 
 All staging models use dedup pattern: `row_number() over (partition by <natural_key> order by ingested_at desc) where rn = 1`
 
-28 dbt tests defined and passing (unique, not_null, accepted_values, unique_combination_of_columns).
+### Analytics Tables Created by dbt (2026-03-03)
+4 materialized tables in the `analytics` schema, created via `dbt run`:
 
-### Analytics Tables
-Not yet created — these will be built by dbt analytics models (next phase).
+- `analytics.fct_player_game_advanced` (74,499 rows) — Player-game fact table joining `stg_player_game_logs` + `stg_team_game_logs`. Computes: true_shooting_pct, effective_fg_pct, usage_rate, assist_pct, turnover_pct, offensive/defensive_rebound_pct, game_score (Hollinger), pace. Filters out DNP players (minutes_played <= 0). TS% and usage_rate are null for players with zero shot attempts (~3,446 rows).
+- `analytics.agg_shot_quality` (1,905 rows) — Player-season shot quality metrics from `stg_shot_charts`. Zone-based league-average FG% (~40-60 bins by zone/area/range/shot_type) used as expected make probability. Aggregates: total_expected_points, total_actual_points, total_points_above_expected, pax_per_100_shots, shot_quality_score (shot selection), shot_making_score (shooting skill).
+- `analytics.agg_lineup_stats` (8,318 rows) — Lineup analytics from `stg_lineup_stats`. Adds four factors (eFG%, turnover_pct, offensive_rebound_pct, free_throw_rate), estimated_possessions_per_game, offensive_rating, net_rating_per_100, sample_size_flag (very_small/small/moderate/reliable based on total minutes).
+- `analytics.agg_player_rolling_stats` (74,499 rows) — Rolling averages from `fct_player_game_advanced`. 5/10/20-game and season-to-date averages for: points, assists, rebounds, TS%, usage_rate, plus_minus, game_score. Includes season_game_number for sparkline x-axis. Uses PostgreSQL named WINDOW clauses.
+
+51 dbt tests defined and passing (unique, not_null, accepted_values, unique_combination_of_columns).
 
 ---
 
@@ -102,8 +108,8 @@ hoopstack/
 │   ├── macros/
 │   │   └── generate_schema_name.sql
 │   ├── models/
-│   │   ├── staging/        # 5 staging models + sources/tests YAML
-│   │   └── analytics/      # placeholder, models TBD
+│   │   ├── staging/        # 6 staging views + sources/tests YAML
+│   │   └── analytics/      # 4 analytics tables + tests YAML
 │   ├── seeds/
 │   ├── snapshots/
 │   ├── tests/
@@ -144,9 +150,9 @@ git push origin main
 - [ ] ~~Week 1-2: Per-game box scores~~ — DROPPED (NBA API throttles too aggressively; game_logs cover box score needs)
 - [x] Week 1: Initialize dbt project with source definitions — DONE (2026-03-03)
 - [x] Week 2-3: Build dbt staging models — DONE (2026-03-03, 5 views in staging schema)
-- [x] Week 2-3: Write dbt tests — DONE (2026-03-03, 28 tests all passing)
+- [x] Week 2-3: Write dbt tests — DONE (2026-03-03, 51 tests all passing)
 - [x] Week 2-3: Generate dbt docs — DONE (2026-03-03, catalog + lineage graph)
-- [ ] Week 2-3: Build dbt analytics models — **NEXT UP**
+- [x] Week 2-3: Build dbt analytics models — DONE (2026-03-03, 4 tables in analytics schema)
 - [ ] Week 1-2: Set up Airflow/Dagster/cron for nightly ingestion
 
 ---
@@ -241,8 +247,8 @@ psql "host=192.168.1.22 port=5434 dbname=nba_analytics user=nba_admin password=E
 The stale checkpoint cleanup script was run before the final backfill. Removed 460 stale PBP entries. This issue is resolved — the code fix (errors no longer checkpointed) plus the one-time cleanup means checkpoints are now accurate.
 
 ### What Comes Next
-All ingestion is complete for 2023-2025. dbt staging layer is complete and validated.
-1. **Next:** Build dbt analytics (gold) models — `fct_player_game_advanced`, `agg_shot_expected_value`, `agg_lineup_stats`, `agg_player_rolling_stats`
+All ingestion is complete for 2023-2025. dbt staging + analytics layers are complete and validated.
+1. **Next:** Phase 2 — FastAPI backend + Next.js/D3.js frontend
 2. **Later:** Set up nightly incremental ingestion (cron/Airflow) for ongoing 2025-26 season games
 3. **Later (optional):** Historical backfill 2010-2022 if needed for trend analysis features
 
@@ -260,8 +266,9 @@ All ingestion is complete for 2023-2025. dbt staging layer is complete and valid
 ```bash
 cd /Users/cameronrezek/Documents/projects/hoopstack/dbt
 source ../dbt-venv/bin/activate
-dbt run    # create/refresh staging views
-dbt test   # run all 28 tests
+dbt run    # create/refresh all views + tables
+dbt test   # run all 51 tests
+dbt build  # run + test in dependency order
 dbt docs generate  # rebuild docs
 dbt docs serve     # view docs locally at http://localhost:8080
 ```
@@ -274,7 +281,7 @@ dbt docs serve     # view docs locally at http://localhost:8080
 - **Test YAML** uses `arguments:` nesting for generic test params (required by dbt 1.11, avoids deprecation warnings).
 - **Game log column names verified** against `information_schema.columns` before writing staging SQL. Confirmed they match the plan (lowercased NBA API column names: `pts`, `fgm`, `wl`, etc.).
 
-### Staging Models
+### Staging Models (6 views)
 | Model | Source | Dedup Key | Rows (approx) |
 |-------|--------|-----------|---------------|
 | `stg_players` | `common_player_info` | `person_id` | ~530 |
@@ -282,12 +289,32 @@ dbt docs serve     # view docs locally at http://localhost:8080
 | `stg_play_by_play` | `play_by_play` | `(game_id, action_number)` | ~1.16M |
 | `stg_player_game_logs` | `player_game_logs` | `(game_id, player_id)` | ~74k |
 | `stg_team_game_logs` | `team_game_logs` | `(game_id, team_id)` | ~6.9k |
+| `stg_lineup_stats` | `lineup_stats` | `(group_id, season, season_type)` | ~8.3k |
 
-### Tests (28 total, all passing)
+### Analytics Models (4 tables)
+| Model | Depends On | Rows | Key Metrics |
+|-------|-----------|------|-------------|
+| `fct_player_game_advanced` | `stg_player_game_logs`, `stg_team_game_logs` | 74,499 | TS%, eFG%, usage_rate, game_score, pace |
+| `agg_shot_quality` | `stg_shot_charts` | 1,905 | pax_per_100_shots, shot_quality_score, shot_making_score |
+| `agg_lineup_stats` | `stg_lineup_stats` | 8,318 | four factors, offensive_rating, net_rating_per_100, sample_size_flag |
+| `agg_player_rolling_stats` | `fct_player_game_advanced` | 74,499 | rolling 5/10/20g + season-to-date avgs |
+
+### DAG
+```
+stg_player_game_logs ──┐
+                       ├─> fct_player_game_advanced ──> agg_player_rolling_stats
+stg_team_game_logs ────┘
+
+stg_shot_charts ──────────> agg_shot_quality
+
+stg_lineup_stats ─────────> agg_lineup_stats
+```
+
+### Tests (51 total, all passing)
 - Uniqueness: `stg_players.player_id`
-- Not-null: key columns on all 5 models
-- Accepted values: `shot_value` (2/3), `win_loss` (W/L), `home_away` (home/away/unknown)
-- Composite uniqueness (dbt_utils): natural keys on shot_charts, play_by_play, player_game_logs, team_game_logs
+- Not-null: key columns on all 10 models
+- Accepted values: `shot_value` (2/3), `win_loss` (W/L), `home_away` (home/away/unknown), `sample_size_flag` (very_small/small/moderate/reliable)
+- Composite uniqueness (dbt_utils): natural keys on all models with composite keys
 
 ---
 

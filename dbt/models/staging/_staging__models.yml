@@ -123,3 +123,26 @@ models:
             combination_of_columns:
               - game_id
               - team_id
+
+  - name: stg_lineup_stats
+    description: "Cleaned 5-man lineup per-game averages. One row per lineup per season per season type."
+    columns:
+      - name: group_id
+        data_tests:
+          - not_null
+      - name: group_name
+        data_tests:
+          - not_null
+      - name: team_id
+        data_tests:
+          - not_null
+      - name: season
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - group_id
+              - season
+              - season_type

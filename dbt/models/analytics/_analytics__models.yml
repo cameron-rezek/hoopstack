@@ -1,8 +1,91 @@
 version: 2
 
-# Analytics (gold) models — to be built after staging is validated.
-# Planned:
-#   - fct_player_game_advanced (advanced stats from game logs + PBP)
-#   - agg_shot_expected_value (shot quality model output)
-#   - agg_lineup_stats (lineup performance metrics)
-#   - agg_player_rolling_stats (rolling averages for trend analysis)
+models:
+  - name: fct_player_game_advanced
+    description: "Player-game fact table with advanced stats (TS%, eFG%, usage, pace, game score). Filters out DNP players."
+    columns:
+      - name: game_id
+        data_tests:
+          - not_null
+      - name: player_id
+        data_tests:
+          - not_null
+      - name: season_id
+        data_tests:
+          - not_null
+      - name: game_date
+        data_tests:
+          - not_null
+      - name: true_shooting_pct
+        description: "Null when player has zero shot attempts"
+      - name: usage_rate
+        description: "Null when player has zero shot attempts"
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - game_id
+              - player_id
+
+  - name: agg_shot_quality
+    description: "Player-season shot quality metrics based on zone-level expected make probabilities."
+    columns:
+      - name: player_id
+        data_tests:
+          - not_null
+      - name: season
+        data_tests:
+          - not_null
+      - name: total_shots
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - player_id
+              - team_id
+              - season
+              - season_type
+
+  - name: agg_lineup_stats
+    description: "Lineup analytics with four factors, offensive/net rating, and sample size classification."
+    columns:
+      - name: group_id
+        data_tests:
+          - not_null
+      - name: season
+        data_tests:
+          - not_null
+      - name: sample_size_flag
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['very_small', 'small', 'moderate', 'reliable']
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - group_id
+              - season
+              - season_type
+
+  - name: agg_player_rolling_stats
+    description: "Rolling 5/10/20-game and season-to-date averages for key player metrics."
+    columns:
+      - name: game_id
+        data_tests:
+          - not_null
+      - name: player_id
+        data_tests:
+          - not_null
+      - name: season_game_number
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - game_id
+              - player_id
