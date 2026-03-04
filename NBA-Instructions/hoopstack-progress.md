@@ -132,7 +132,7 @@ hoopstack/
 │   ├── queries/            # Raw SQL by domain (7 files)
 │   └── .env                # DB credentials (gitignored)
 ├── api-venv/               # Python venv for API (gitignored)
-├── frontend/               # Next.js + D3.js (Phase 2, not yet started)
+├── frontend/               # Next.js + D3.js frontend (completed 2026-03-03)
 ├── scripts/                # Utility scripts, backfills, index SQL
 └── docs/                   # Architecture diagrams, notes
 ```
@@ -171,14 +171,19 @@ git push origin main
 - [x] Week 2-3: Build dbt analytics models — DONE (2026-03-03, 4 tables in analytics schema)
 - [ ] Week 1-2: Set up Airflow/Dagster/cron for nightly ingestion
 
-**Phase 2: API + Core Visualizations (3-4 weeks) — API DONE, frontend next**
+**Phase 2: API + Core Visualizations (3-4 weeks) — COMPLETE**
 
 - [x] Week 4: FastAPI project scaffolding — DONE (2026-03-03)
 - [x] Week 4: Core endpoints (players, teams, games, shots, lineups) — DONE (20 endpoints)
 - [x] Week 4: Query parameterization, filtering, pagination — DONE
 - [x] Week 4: Auto-generated OpenAPI docs verified — DONE (http://localhost:8000/docs)
 - [x] Week 4: Database indexes for API query performance — DONE (8 indexes)
-- [ ] Week 5-6: Next.js frontend scaffolding + shot charts
+- [x] Week 5-6: Next.js frontend scaffolding — DONE (2026-03-03, Next.js 15 + App Router)
+- [x] Week 5-6: Shot charts (D3.js scatter, hexbin, zone views) — DONE (2026-03-03)
+- [x] Week 5-6: Player profiles, game logs, rolling stats — DONE (2026-03-03)
+- [x] Week 5-6: Game detail pages (box score, shot chart, game flow, PBP) — DONE (2026-03-03)
+- [x] Week 5-6: Leaderboards (shot quality + lineups) — DONE (2026-03-03)
+- [x] Week 5-6: Teams pages — DONE (2026-03-03)
 - [ ] Week 7: Player comparison dashboard
 - [ ] Week 7: Tableau Public portfolio (parallel track)
 
@@ -274,12 +279,13 @@ psql "host=192.168.1.22 port=5434 dbname=nba_analytics user=nba_admin password=E
 The stale checkpoint cleanup script was run before the final backfill. Removed 460 stale PBP entries. This issue is resolved — the code fix (errors no longer checkpointed) plus the one-time cleanup means checkpoints are now accurate.
 
 ### What Comes Next
-All ingestion is complete for 2023-2025. dbt staging + analytics layers are complete and validated. FastAPI backend is live with 20 endpoints.
-1. **Next:** Phase 2 continued — Next.js/D3.js frontend (shot charts, player dashboards, game flow)
-2. **Later:** Set up nightly incremental ingestion (cron/Airflow) for ongoing 2025-26 season games
-3. **Later:** Redis caching for expensive API queries, auth if needed
-4. **Later (optional):** Historical backfill 2010-2022 if needed for trend analysis features
-5. **Later (optional):** Populate `dims.dim_teams` with conference, division, and team colors for richer team data
+All ingestion is complete for 2023-2025. dbt staging + analytics layers are complete and validated. FastAPI backend is live with 20 endpoints. **Next.js frontend is live with 7 routes.**
+1. **Next:** Polish & deploy — bug fixes, responsive tweaks, Vercel deployment
+2. **Next:** Player comparison dashboard (side-by-side stat comparison)
+3. **Later:** Set up nightly incremental ingestion (cron/Airflow) for ongoing 2025-26 season games
+4. **Later:** Redis caching for expensive API queries, auth if needed
+5. **Later (optional):** Historical backfill 2010-2022 if needed for trend analysis features
+6. **Later (optional):** Populate `dims.dim_teams` with conference, division, and team colors for richer team data
 
 ---
 
@@ -435,6 +441,96 @@ idx_shot_quality_player     ON analytics.agg_shot_quality (player_id)
 - `GET /shot-quality?season=2024-25&min_shots=100` → 440 players, sorted by pax_per_100_shots
 - `GET /lineups?season=2024-25&min_minutes=200` → 34 lineups
 - `GET /seasons` → ["2025-26", "2024-25", "2023-24"]
+
+---
+
+## Next.js Frontend (completed 2026-03-03)
+
+### Environment
+- **Next.js:** 16.1.6 (App Router)
+- **TypeScript:** 5.x
+- **Key dependencies:** @tanstack/react-query 5, D3.js 7 + d3-hexbin, Recharts 2, Tailwind CSS 4, Lucide React, clsx
+- **Directory:** `frontend/` in project root
+- **Config:** `frontend/.env.local` → `NEXT_PUBLIC_API_URL=http://localhost:8000`
+
+### How to Run
+```bash
+cd /Users/cameronrezek/Documents/projects/hoopstack/frontend
+npm run dev
+# App at http://localhost:3000
+# Requires API running at http://localhost:8000 (CORS configured)
+```
+
+### Routes (7 total)
+
+| Route | Page | Data Sources |
+|-------|------|-------------|
+| `/` | Home — hero, quick stats, top 5 shot quality leaders, search bar, API health | `/health`, `/seasons`, `/shot-quality` |
+| `/players` | Player search & browse (card grid, debounced search, pagination) | `/players?search=` |
+| `/players/[playerId]` | Player profile (3 tabs: Game Log, Shot Chart, Rolling Stats) | `/players/:id`, `/players/:id/games`, `/players/:id/shots`, `/players/:id/rolling`, `/players/:id/shot-quality` |
+| `/teams` | Team grid with logos | `/teams` |
+| `/teams/[teamId]` | Team detail (2 tabs: Game Log, Lineups) | `/teams/:id`, `/teams/:id/games`, `/teams/:id/lineups` |
+| `/games/[gameId]` | Game detail (4 tabs: Box Score, Shot Chart, Game Flow, Play-by-Play) | `/games/:id`, `/games/:id/players`, `/games/:id/shots`, `/games/:id/pbp` |
+| `/leaderboards` | Rankings (2 tabs: Shot Quality, Lineups) with filters + pagination | `/shot-quality`, `/lineups` |
+
+### Architecture
+- **React Query (TanStack Query)** for server state management — 5 min staleTime, 1 retry, no refetch on window focus
+- **Season Context** — Global React Context with season dropdown in header. All data hooks inherit the selected season.
+- **Auto-pagination** — `fetchAllPages()` utility fetches all pages in parallel for shot charts (players can have 800-1500 shots per season)
+- **Dark theme** — CSS custom properties (`--bg-primary`, `--accent`, etc.) applied globally. No light mode toggle (dark only).
+- **D3.js shot court** — SVG half-court (`viewBox="0 0 500 470"`) with correct NBA coordinate system (`loc_x` + 250, `loc_y` + 50). Three visualization layers: scatter (make/miss dots), hexbin (frequency + efficiency), zones (aggregated by shot zone).
+- **Recharts** for rolling stats (multi-line with 5g/10g/20g averages + season reference line) and game flow (score differential area chart).
+- **NBA CDN images** — Player headshots (`cdn.nba.com/headshots/...`) and team logos (`cdn.nba.com/logos/...`) with fallback handlers for missing images.
+
+### Project Structure
+```
+frontend/src/
+├── app/
+│   ├── layout.tsx                    # Root layout (providers, sidebar, header)
+│   ├── page.tsx                      # Home / landing
+│   ├── globals.css                   # Tailwind + CSS custom properties
+│   ├── players/
+│   │   ├── page.tsx                  # Player search
+│   │   └── [playerId]/page.tsx       # Player profile
+│   ├── teams/
+│   │   ├── page.tsx                  # Team list
+│   │   └── [teamId]/page.tsx         # Team detail
+│   ├── games/
+│   │   └── [gameId]/page.tsx         # Game detail
+│   └── leaderboards/page.tsx         # Shot quality + lineup rankings
+├── lib/
+│   ├── api.ts                        # Typed fetch client (20 endpoints)
+│   ├── types.ts                      # TypeScript interfaces (mirrors API)
+│   ├── constants.ts                  # Court dimensions, colors, CDN URLs
+│   ├── utils.ts                      # Formatters, fetchAllPages, debounce
+│   └── hooks/                        # React Query hooks
+│       ├── use-players.ts
+│       ├── use-teams.ts
+│       ├── use-games.ts
+│       ├── use-shots.ts
+│       ├── use-stats.ts
+│       └── use-seasons.ts
+├── components/
+│   ├── providers.tsx                 # QueryClient + SeasonProvider
+│   ├── layout/ (sidebar, header, season-selector)
+│   ├── ui/ (data-table, search-input, pagination, tabs, stat-card, loading-skeleton, empty-state, error-display, sparkline)
+│   ├── players/ (player-card, player-header, game-log-table, player-search-results)
+│   ├── shots/ (court, shot-scatter, shot-hexbin, shot-zones, shot-chart-controls, shot-tooltip)
+│   ├── charts/ (rolling-line-chart, game-flow-chart, stat-trend, chart-theme)
+│   ├── games/ (game-header, box-score-table, pbp-feed)
+│   └── leaderboards/ (shot-quality-table, lineup-table)
+└── contexts/
+    └── season-context.tsx            # Global season state
+```
+
+### Key Design Decisions
+- **No component library** — All UI components built from scratch with Tailwind. Cards, tables, tabs, pagination are custom.
+- **Client components** — All pages are `'use client'` since they use hooks (React Query, useState, useContext). No server components for data pages.
+- **Dark-first** — Single dark theme, no toggle. Color palette: indigo accent, green success, red danger.
+- **Responsive** — Card grids adjust columns (1-2-3), tables scroll horizontally, shot court scales with container.
+- **NBA headshot fallback** — `onError` handler shows silhouette icon when CDN returns 404 for inactive players.
+- **d3-hexbin** installed separately (not included in d3 v7 bundle).
+- **`useSearchParams` + Suspense** — Players page reads `?search=` from URL (navigated from home page search) and wraps with `<Suspense>` per Next.js App Router requirements.
 
 ---
 
