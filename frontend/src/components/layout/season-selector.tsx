@@ -1,5 +1,6 @@
 'use client';
 
+import { Calendar } from 'lucide-react';
 import { useSeason } from '@/contexts/season-context';
 
 export function SeasonSelector() {
@@ -12,16 +13,19 @@ export function SeasonSelector() {
   }
 
   return (
-    <select
-      value={season}
-      onChange={(e) => setSeason(e.target.value)}
-      className="h-9 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-    >
-      {seasons.map((s) => (
-        <option key={s} value={s}>
-          {s}
-        </option>
-      ))}
-    </select>
+    <div className="flex items-center gap-2">
+      <Calendar className="h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+      <select
+        value={season}
+        onChange={(e) => setSeason(e.target.value)}
+        className="h-8 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 pr-7 text-xs font-medium text-[var(--text-primary)] outline-none focus:border-[var(--accent)] transition-colors"
+      >
+        {seasons.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }

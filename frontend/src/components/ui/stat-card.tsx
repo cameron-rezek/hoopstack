@@ -5,13 +5,21 @@ interface StatCardProps {
   value: string | number;
   subtitle?: string;
   className?: string;
+  accent?: boolean;
 }
 
-export function StatCard({ label, value, subtitle, className }: StatCardProps) {
+export function StatCard({ label, value, subtitle, className, accent }: StatCardProps) {
   return (
-    <div className={cn('rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-4', className)}>
-      <div className="text-xs text-[var(--text-secondary)]">{label}</div>
-      <div className="mt-1 font-mono text-2xl font-semibold tabular-nums text-[var(--text-primary)]">
+    <div className={cn(
+      'rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 transition-all',
+      accent && 'border-[color-mix(in_srgb,var(--accent)_20%,var(--border))]',
+      className,
+    )}>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">{label}</div>
+      <div className={cn(
+        'mt-1 font-mono text-2xl font-bold tabular-nums',
+        accent ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]',
+      )}>
         {value}
       </div>
       {subtitle && (

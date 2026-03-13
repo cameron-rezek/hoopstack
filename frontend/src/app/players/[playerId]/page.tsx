@@ -80,12 +80,14 @@ export default function PlayerProfilePage({
   return (
     <div className="space-y-6">
       {playerLoading ? (
-        <div className="flex gap-6 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-6">
-          <Skeleton className="h-32 w-32 rounded-full" />
-          <div className="flex-1 space-y-3">
-            <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-4 w-80" />
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6">
+          <div className="flex gap-6">
+            <Skeleton className="h-28 w-28 rounded-xl" />
+            <div className="flex-1 space-y-3">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-80" />
+            </div>
           </div>
         </div>
       ) : player ? (
@@ -139,14 +141,14 @@ export default function PlayerProfilePage({
                   <StatCard label="Total Shots" value={shotStats.total} />
                   <StatCard label="FG%" value={formatPct(shotStats.fgPct)} />
                   <StatCard label="3P%" value={shotStats.threePct !== null ? formatPct(shotStats.threePct) : '\u2014'} />
-                  <StatCard label="Points" value={shotStats.points} />
+                  <StatCard label="Points" value={shotStats.points} accent />
                 </div>
               )}
             </div>
           )}
 
           {allShots && (
-            <p className="text-center text-xs text-[var(--text-secondary)]">
+            <p className="text-center text-xs text-[var(--text-tertiary)]">
               {allShots.length} shots loaded
             </p>
           )}
@@ -155,12 +157,12 @@ export default function PlayerProfilePage({
 
       {activeTab === 'rolling' && (
         <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-[var(--text-secondary)]">Stat:</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Stat:</span>
             <select
               value={rollingStat}
               onChange={(e) => setRollingStat(e.target.value as RollingStat)}
-              className="h-9 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+              className="h-9 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] transition-colors"
             >
               {Object.entries(statConfig).map(([key, cfg]) => (
                 <option key={key} value={key}>{cfg.label}</option>
@@ -171,7 +173,9 @@ export default function PlayerProfilePage({
           {rollingLoading ? (
             <Skeleton className="h-[350px] w-full" />
           ) : rollingData && rollingData.length > 0 ? (
-            <RollingLineChart data={rollingData} stat={rollingStat} />
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
+              <RollingLineChart data={rollingData} stat={rollingStat} />
+            </div>
           ) : (
             <div className="py-16 text-center text-[var(--text-secondary)]">No rolling data available</div>
           )}
@@ -193,12 +197,12 @@ export default function PlayerProfilePage({
 
           {/* Shot quality summary */}
           {shotQuality && shotQuality.length > 0 && (
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-4">
-              <h3 className="mb-3 text-sm font-medium text-[var(--text-secondary)]">Shot Quality</h3>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5">
+              <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Shot Quality</h3>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <StatCard label="Shot Quality Score" value={formatStat(shotQuality[0].shot_quality_score)} />
                 <StatCard label="Shot Making Score" value={formatStat(shotQuality[0].shot_making_score)} />
-                <StatCard label="PAX/100" value={formatStat(shotQuality[0].pax_per_100_shots)} />
+                <StatCard label="PAX/100" value={formatStat(shotQuality[0].pax_per_100_shots)} accent />
                 <StatCard label="Points Above Expected" value={formatStat(shotQuality[0].total_points_above_expected, 0)} />
               </div>
             </div>

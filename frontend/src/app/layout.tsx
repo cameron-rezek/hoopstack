@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hoopstack",
+  title: "Hoopstack — NBA Analytics",
   description: "NBA analytics for the modern fan",
 };
 
@@ -32,9 +32,9 @@ export default function RootLayout({
       >
         <Providers>
           <Sidebar />
-          <div className="ml-56 min-h-screen">
+          <div className="ml-56 min-h-screen bg-grid">
             <Header />
-            <main className="p-6">{children}</main>
+            <main className="px-8 py-6">{children}</main>
           </div>
         </Providers>
       </body>

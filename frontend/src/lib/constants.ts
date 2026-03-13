@@ -43,10 +43,10 @@ export const CHART_COLORS = [
 
 export const CHART_THEME = {
   backgroundColor: 'transparent',
-  textColor: '#8b8b9e',
-  gridColor: '#2a2a35',
-  tooltipBg: '#1c1c24',
-  tooltipBorder: '#2a2a35',
+  textColor: '#7c7d94',
+  gridColor: '#252633',
+  tooltipBg: '#1a1b24',
+  tooltipBorder: '#252633',
   fontSize: 12,
 } as const;
 

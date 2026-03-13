@@ -13,6 +13,11 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
 } from 'recharts';
 import { usePlayer } from '@/lib/hooks/use-players';
 import { useAllPlayerShots } from '@/lib/hooks/use-shots';
@@ -41,10 +46,12 @@ function PlayerPicker({
   selectedPlayer,
   onSelect,
   label,
+  accent,
 }: {
   selectedPlayer: PlayerDetail | null;
   onSelect: (playerId: number) => void;
   label: string;
+  accent: string;
 }) {
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
@@ -56,16 +63,16 @@ function PlayerPicker({
 
   return (
     <div className="relative flex-1">
-      <label className="mb-1 block text-xs text-[var(--text-secondary)]">{label}</label>
+      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">{label}</label>
       {selectedPlayer ? (
-        <div className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-3">
-          <PlayerAvatar playerId={selectedPlayer.player_id} name={selectedPlayer.player_name} size={40} />
+        <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-3 transition-all hover:border-[var(--border)]" style={{ borderLeftColor: accent, borderLeftWidth: 3 }}>
+          <PlayerAvatar playerId={selectedPlayer.player_id} name={selectedPlayer.player_name} size={44} />
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-[var(--text-primary)] truncate">
+            <div className="text-sm font-semibold text-[var(--text-primary)] truncate">
               {selectedPlayer.player_name}
             </div>
             <div className="text-xs text-[var(--text-secondary)]">
-              {[selectedPlayer.team_abbreviation, selectedPlayer.position].filter(Boolean).join(' \u00B7 ')}
+              {[selectedPlayer.team_abbreviation, selectedPlayer.position].filter(Boolean).join(' · ')}
             </div>
           </div>
           <button
@@ -74,7 +81,7 @@ function PlayerPicker({
               setOpen(true);
               onSelect(0);
             }}
-            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -82,7 +89,7 @@ function PlayerPicker({
       ) : (
         <div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-tertiary)]" />
             <input
               type="text"
               value={search}
@@ -92,11 +99,11 @@ function PlayerPicker({
               }}
               onFocus={() => setOpen(true)}
               placeholder="Search player..."
-              className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] pl-10 pr-4 text-sm text-[var(--text-primary)] placeholder-[var(--text-secondary)] outline-none focus:border-[var(--accent)]"
+              className="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-card)] pl-10 pr-4 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] outline-none transition-all focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-glow)]"
             />
           </div>
           {open && search.length >= 2 && results?.data && results.data.length > 0 && (
-            <div className="absolute z-20 mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] shadow-lg">
+            <div className="absolute z-20 mt-1 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-card)] shadow-xl shadow-black/20 overflow-hidden">
               {results.data.map((p) => (
                 <button
                   key={p.player_id}
@@ -105,13 +112,13 @@ function PlayerPicker({
                     setSearch('');
                     setOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-[var(--bg-elevated)] first:rounded-t-lg last:rounded-b-lg"
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-[var(--bg-elevated)] transition-colors"
                 >
                   <PlayerAvatar playerId={p.player_id} name={p.player_name} size={32} />
                   <div>
-                    <div className="text-[var(--text-primary)]">{p.player_name}</div>
-                    <div className="text-xs text-[var(--text-secondary)]">
-                      {[p.team_abbreviation, p.position].filter(Boolean).join(' \u00B7 ')}
+                    <div className="text-[var(--text-primary)] font-medium">{p.player_name}</div>
+                    <div className="text-xs text-[var(--text-tertiary)]">
+                      {[p.team_abbreviation, p.position].filter(Boolean).join(' · ')}
                     </div>
                   </div>
                 </button>
@@ -130,12 +137,12 @@ function PlayerAvatar({ playerId, name, size }: { playerId: number; name: string
   const [err, setErr] = useState(false);
   return (
     <div
-      className="relative shrink-0 overflow-hidden rounded-full bg-[var(--bg-elevated)]"
+      className="relative shrink-0 overflow-hidden rounded-full bg-[var(--bg-elevated)] ring-2 ring-[var(--border)]"
       style={{ width: size, height: size }}
     >
       {err ? (
         <div className="flex h-full w-full items-center justify-center">
-          <User className="h-1/2 w-1/2 text-[var(--text-secondary)]" />
+          <User className="h-1/2 w-1/2 text-[var(--text-tertiary)]" />
         </div>
       ) : (
         <Image
@@ -236,20 +243,22 @@ function CompareBar({
   const tie = v1 === v2;
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-2">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-1.5">
       {/* Player 1 bar (grows right to left) */}
       <div className="flex items-center gap-2">
         <span className={cn(
           'font-mono text-sm tabular-nums min-w-[52px] text-right',
-          leader1 && !tie ? 'font-bold text-[var(--accent)]' : 'text-[var(--text-primary)]',
+          leader1 && !tie ? 'font-bold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]',
         )}>
           {fmt(val1)}
         </span>
         <div className="flex-1 flex justify-end">
           <div
             className={cn(
-              'h-4 rounded-l-sm transition-all',
-              leader1 && !tie ? 'bg-[var(--accent)]' : 'bg-[var(--bg-elevated)]',
+              'h-5 rounded-l-md transition-all duration-500',
+              leader1 && !tie
+                ? 'bg-gradient-to-l from-[#6366f1] to-[#6366f1]/60'
+                : 'bg-[var(--bg-elevated)]',
             )}
             style={{ width: `${pct1}%` }}
           />
@@ -257,7 +266,7 @@ function CompareBar({
       </div>
 
       {/* Label */}
-      <span className="text-xs font-medium text-[var(--text-secondary)] min-w-[40px] text-center">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)] min-w-[44px] text-center">
         {label}
       </span>
 
@@ -266,20 +275,99 @@ function CompareBar({
         <div className="flex-1">
           <div
             className={cn(
-              'h-4 rounded-r-sm transition-all',
-              leader2 && !tie ? 'bg-[var(--accent)]' : 'bg-[var(--bg-elevated)]',
+              'h-5 rounded-r-md transition-all duration-500',
+              leader2 && !tie
+                ? 'bg-gradient-to-r from-[#22c55e] to-[#22c55e]/60'
+                : 'bg-[var(--bg-elevated)]',
             )}
             style={{ width: `${pct2}%` }}
           />
         </div>
         <span className={cn(
           'font-mono text-sm tabular-nums min-w-[52px]',
-          leader2 && !tie ? 'font-bold text-[var(--accent)]' : 'text-[var(--text-primary)]',
+          leader2 && !tie ? 'font-bold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]',
         )}>
           {fmt(val2)}
         </span>
       </div>
     </div>
+  );
+}
+
+// ── Radar Chart Comparison ──────────────────────────────────
+
+function CompareRadarChart({
+  avg1,
+  avg2,
+  name1,
+  name2,
+}: {
+  avg1: SeasonAverages;
+  avg2: SeasonAverages;
+  name1: string;
+  name2: string;
+}) {
+  // Normalize stats to 0-100 scale for radar chart
+  const stats = [
+    { stat: 'Scoring', key: 'ppg', max: 35 },
+    { stat: 'Rebounds', key: 'rpg', max: 15 },
+    { stat: 'Assists', key: 'apg', max: 12 },
+    { stat: 'Efficiency', key: 'ts_pct', max: 0.7 },
+    { stat: 'Defense', key: 'combined_def', max: 5 }, // stl + blk
+    { stat: 'Impact', key: 'game_score', max: 25 },
+  ];
+
+  const data = stats.map(({ stat, key, max }) => {
+    let v1: number, v2: number;
+    if (key === 'combined_def') {
+      v1 = (avg1.spg + avg1.bpg);
+      v2 = (avg2.spg + avg2.bpg);
+    } else {
+      v1 = (avg1 as unknown as Record<string, number>)[key] ?? 0;
+      v2 = (avg2 as unknown as Record<string, number>)[key] ?? 0;
+    }
+    return {
+      stat,
+      p1: Math.min((v1 / max) * 100, 100),
+      p2: Math.min((v2 / max) * 100, 100),
+    };
+  });
+
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <RadarChart data={data} cx="50%" cy="50%" outerRadius="70%">
+        <PolarGrid stroke={CHART_THEME.gridColor} />
+        <PolarAngleAxis
+          dataKey="stat"
+          tick={{ fill: CHART_THEME.textColor, fontSize: 11 }}
+        />
+        <PolarRadiusAxis
+          angle={30}
+          domain={[0, 100]}
+          tick={false}
+          axisLine={false}
+        />
+        <Radar
+          name={name1}
+          dataKey="p1"
+          stroke={CHART_COLORS[0]}
+          fill={CHART_COLORS[0]}
+          fillOpacity={0.15}
+          strokeWidth={2}
+        />
+        <Radar
+          name={name2}
+          dataKey="p2"
+          stroke={CHART_COLORS[1]}
+          fill={CHART_COLORS[1]}
+          fillOpacity={0.15}
+          strokeWidth={2}
+        />
+        <Legend
+          wrapperStyle={{ fontSize: 12, color: CHART_THEME.textColor }}
+        />
+      </RadarChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -294,16 +382,16 @@ function ShotViewToggle({ view, onChange }: { view: ShotView; onChange: (v: Shot
     { key: 'zones', label: 'Zones' },
   ];
   return (
-    <div className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-1">
+    <div className="flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-1">
       {views.map((v) => (
         <button
           key={v.key}
           onClick={() => onChange(v.key)}
           className={cn(
-            'rounded-md px-3 py-1 text-xs font-medium transition-colors',
+            'rounded-lg px-4 py-1.5 text-xs font-medium transition-all',
             view === v.key
-              ? 'bg-[var(--accent)] text-white'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+              ? 'bg-[var(--accent)] text-white shadow-sm'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]',
           )}
         >
           {v.label}
@@ -320,24 +408,35 @@ function ShotCourtPanel({
   view,
   isLoading,
   playerName,
+  color,
 }: {
   shots: ShotChartItem[];
   view: ShotView;
   isLoading: boolean;
   playerName: string;
+  color: string;
 }) {
   const stats = useMemo(() => {
     if (!shots.length) return null;
     const total = shots.length;
     const makes = shots.filter((s) => s.is_made).length;
-    return { total, fgPct: makes / total };
+    const threes = shots.filter((s) => s.shot_value === 3);
+    const threesMade = threes.filter((s) => s.is_made).length;
+    return {
+      total,
+      fgPct: makes / total,
+      threePct: threes.length > 0 ? threesMade / threes.length : null,
+    };
   }, [shots]);
 
   return (
     <div className="flex-1 min-w-0">
-      <h3 className="mb-2 text-center text-sm font-medium text-[var(--text-primary)] truncate">
-        {playerName}
-      </h3>
+      <div className="mb-3 flex items-center justify-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate">
+          {playerName}
+        </h3>
+      </div>
       {isLoading ? (
         <Skeleton className="mx-auto h-[300px] max-w-[400px]" />
       ) : (
@@ -350,9 +449,12 @@ function ShotCourtPanel({
             </Court>
           </div>
           {stats && (
-            <div className="mt-2 flex justify-center gap-4 text-xs text-[var(--text-secondary)]">
-              <span>{stats.total} shots</span>
-              <span>{formatPct(stats.fgPct)} FG</span>
+            <div className="mt-3 flex justify-center gap-5 text-xs">
+              <span className="text-[var(--text-tertiary)]">{stats.total} shots</span>
+              <span className="font-mono tabular-nums text-[var(--text-secondary)]">{formatPct(stats.fgPct)} FG</span>
+              {stats.threePct !== null && (
+                <span className="font-mono tabular-nums text-[var(--text-secondary)]">{formatPct(stats.threePct)} 3P</span>
+              )}
             </div>
           )}
         </>
@@ -378,7 +480,6 @@ function CompareRollingChart({
 }) {
   const config = statConfig[stat];
 
-  // Merge both datasets by game number
   const merged = useMemo(() => {
     const map = new Map<number, Record<string, unknown>>();
     for (const d of data1) {
@@ -432,7 +533,7 @@ function CompareRollingChart({
           type="monotone"
           dataKey="p1"
           stroke={CHART_COLORS[0]}
-          strokeWidth={2}
+          strokeWidth={2.5}
           dot={false}
           name={name1}
           connectNulls
@@ -441,13 +542,26 @@ function CompareRollingChart({
           type="monotone"
           dataKey="p2"
           stroke={CHART_COLORS[1]}
-          strokeWidth={2}
+          strokeWidth={2.5}
           dot={false}
           name={name2}
           connectNulls
         />
       </LineChart>
     </ResponsiveContainer>
+  );
+}
+
+// ── Section Card ────────────────────────────────────────────
+
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
+      <div className="border-b border-[var(--border-subtle)] px-5 py-3">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">{title}</h3>
+      </div>
+      <div className="px-5 py-3">{children}</div>
+    </div>
   );
 }
 
@@ -469,7 +583,7 @@ function CompareContent() {
   const player2Id = p2Param ? parseInt(p2Param, 10) : 0;
 
   const [activeTab, setActiveTab] = useState('overview');
-  const [shotView, setShotView] = useState<ShotView>('scatter');
+  const [shotView, setShotView] = useState<ShotView>('hexbin');
   const [rollingStat, setRollingStat] = useState<RollingStat>('points');
   const { season } = useSeason();
 
@@ -501,9 +615,11 @@ function CompareContent() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Player Comparison</h1>
-        <p className="text-sm text-[var(--text-secondary)]">
-          Compare two players side-by-side for the selected season
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+          Player Comparison
+        </h1>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          Compare two players side-by-side for the {season} season
         </p>
       </div>
 
@@ -513,20 +629,27 @@ function CompareContent() {
           selectedPlayer={player1 ?? null}
           onSelect={(id) => updateUrl(id, player2Id)}
           label="Player 1"
+          accent={CHART_COLORS[0]}
         />
-        <div className="pb-3">
-          <ArrowRightLeft className="h-5 w-5 text-[var(--text-secondary)]" />
+        <div className="pb-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-card)]">
+            <ArrowRightLeft className="h-4 w-4 text-[var(--text-tertiary)]" />
+          </div>
         </div>
         <PlayerPicker
           selectedPlayer={player2 ?? null}
           onSelect={(id) => updateUrl(player1Id, id)}
           label="Player 2"
+          accent={CHART_COLORS[1]}
         />
       </div>
 
       {!bothSelected && (
-        <div className="py-16 text-center text-[var(--text-secondary)]">
-          Select two players above to compare
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-card)] py-20">
+          <ArrowRightLeft className="h-8 w-8 text-[var(--text-tertiary)]" />
+          <p className="text-sm text-[var(--text-secondary)]">
+            Select two players above to compare
+          </p>
         </div>
       )}
 
@@ -536,84 +659,99 @@ function CompareContent() {
 
           {/* ── Overview Tab ── */}
           {activeTab === 'overview' && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Player headers */}
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
                 <div className="flex items-center gap-3 justify-end">
                   {player1 && (
                     <>
                       <div className="text-right">
                         <div className="text-sm font-bold text-[var(--text-primary)]">{player1.player_name}</div>
                         <div className="text-xs text-[var(--text-secondary)]">
-                          {[player1.team_abbreviation, player1.position].filter(Boolean).join(' \u00B7 ')}
+                          {[player1.team_abbreviation, player1.position].filter(Boolean).join(' · ')}
                         </div>
+                        {avg1 && (
+                          <div className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">
+                            {avg1.games_played}G · {avg1.wins}W-{avg1.losses}L
+                          </div>
+                        )}
                       </div>
-                      <PlayerAvatar playerId={player1.player_id} name={player1.player_name} size={48} />
+                      <PlayerAvatar playerId={player1.player_id} name={player1.player_name} size={56} />
                     </>
                   )}
                 </div>
-                <span className="text-xs font-bold text-[var(--text-secondary)]">VS</span>
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">vs</span>
+                </div>
                 <div className="flex items-center gap-3">
                   {player2 && (
                     <>
-                      <PlayerAvatar playerId={player2.player_id} name={player2.player_name} size={48} />
+                      <PlayerAvatar playerId={player2.player_id} name={player2.player_name} size={56} />
                       <div>
                         <div className="text-sm font-bold text-[var(--text-primary)]">{player2.player_name}</div>
                         <div className="text-xs text-[var(--text-secondary)]">
-                          {[player2.team_abbreviation, player2.position].filter(Boolean).join(' \u00B7 ')}
+                          {[player2.team_abbreviation, player2.position].filter(Boolean).join(' · ')}
                         </div>
+                        {avg2 && (
+                          <div className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">
+                            {avg2.games_played}G · {avg2.wins}W-{avg2.losses}L
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
                 </div>
               </div>
 
-              {avg1Loading || avg2Loading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <Skeleton key={i} className="h-8 w-full" />
-                  ))}
-                </div>
-              ) : avg1 && avg2 ? (
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2">
-                  <div className="mb-2 border-b border-[var(--border)] pb-2">
-                    <h3 className="text-xs font-medium text-[var(--text-secondary)] text-center">Season Averages</h3>
-                  </div>
-                  <CompareBar label="PPG" val1={avg1.ppg} val2={avg2.ppg} />
-                  <CompareBar label="RPG" val1={avg1.rpg} val2={avg2.rpg} />
-                  <CompareBar label="APG" val1={avg1.apg} val2={avg2.apg} />
-                  <CompareBar label="SPG" val1={avg1.spg} val2={avg2.spg} />
-                  <CompareBar label="BPG" val1={avg1.bpg} val2={avg2.bpg} />
-                  <CompareBar label="TOV" val1={avg1.topg} val2={avg2.topg} higherIsBetter={false} />
-                  <CompareBar label="MPG" val1={avg1.mpg} val2={avg2.mpg} />
-                  <CompareBar label="+/-" val1={avg1.plus_minus} val2={avg2.plus_minus} format="plusminus" />
-                </div>
-              ) : null}
-
+              {/* Radar Chart */}
               {avg1 && avg2 && (
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2">
-                  <div className="mb-2 border-b border-[var(--border)] pb-2">
-                    <h3 className="text-xs font-medium text-[var(--text-secondary)] text-center">Shooting</h3>
-                  </div>
-                  <CompareBar label="FG%" val1={avg1.fg_pct} val2={avg2.fg_pct} format="pct" />
-                  <CompareBar label="3P%" val1={avg1.fg3_pct} val2={avg2.fg3_pct} format="pct" />
-                  <CompareBar label="FT%" val1={avg1.ft_pct} val2={avg2.ft_pct} format="pct" />
-                  <CompareBar label="TS%" val1={avg1.ts_pct} val2={avg2.ts_pct} format="pct" />
-                  <CompareBar label="USG%" val1={avg1.usage} val2={avg2.usage} format="pct" />
-                  <CompareBar label="GmSc" val1={avg1.game_score} val2={avg2.game_score} />
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
+                  <CompareRadarChart
+                    avg1={avg1}
+                    avg2={avg2}
+                    name1={player1?.player_name ?? 'Player 1'}
+                    name2={player2?.player_name ?? 'Player 2'}
+                  />
                 </div>
               )}
 
+              {avg1Loading || avg2Loading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <Skeleton key={i} className="h-7 w-full" />
+                  ))}
+                </div>
+              ) : avg1 && avg2 ? (
+                <>
+                  <SectionCard title="Per Game Averages">
+                    <CompareBar label="PPG" val1={avg1.ppg} val2={avg2.ppg} />
+                    <CompareBar label="RPG" val1={avg1.rpg} val2={avg2.rpg} />
+                    <CompareBar label="APG" val1={avg1.apg} val2={avg2.apg} />
+                    <CompareBar label="SPG" val1={avg1.spg} val2={avg2.spg} />
+                    <CompareBar label="BPG" val1={avg1.bpg} val2={avg2.bpg} />
+                    <CompareBar label="TOV" val1={avg1.topg} val2={avg2.topg} higherIsBetter={false} />
+                    <CompareBar label="MPG" val1={avg1.mpg} val2={avg2.mpg} />
+                    <CompareBar label="+/-" val1={avg1.plus_minus} val2={avg2.plus_minus} format="plusminus" />
+                  </SectionCard>
+
+                  <SectionCard title="Shooting Efficiency">
+                    <CompareBar label="FG%" val1={avg1.fg_pct} val2={avg2.fg_pct} format="pct" />
+                    <CompareBar label="3P%" val1={avg1.fg3_pct} val2={avg2.fg3_pct} format="pct" />
+                    <CompareBar label="FT%" val1={avg1.ft_pct} val2={avg2.ft_pct} format="pct" />
+                    <CompareBar label="TS%" val1={avg1.ts_pct} val2={avg2.ts_pct} format="pct" />
+                    <CompareBar label="USG%" val1={avg1.usage} val2={avg2.usage} format="pct" />
+                    <CompareBar label="GmSc" val1={avg1.game_score} val2={avg2.game_score} />
+                  </SectionCard>
+                </>
+              ) : null}
+
               {/* Shot quality */}
               {sq1 && sq1.length > 0 && sq2 && sq2.length > 0 && (
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2">
-                  <div className="mb-2 border-b border-[var(--border)] pb-2">
-                    <h3 className="text-xs font-medium text-[var(--text-secondary)] text-center">Shot Quality</h3>
-                  </div>
+                <SectionCard title="Shot Quality Metrics">
                   <CompareBar label="PAX/100" val1={sq1[0].pax_per_100_shots} val2={sq2[0].pax_per_100_shots} />
                   <CompareBar label="Quality" val1={sq1[0].shot_quality_score} val2={sq2[0].shot_quality_score} />
                   <CompareBar label="Making" val1={sq1[0].shot_making_score} val2={sq2[0].shot_making_score} />
-                </div>
+                </SectionCard>
               )}
             </div>
           )}
@@ -630,12 +768,17 @@ function CompareContent() {
                   view={shotView}
                   isLoading={shots1Loading}
                   playerName={player1?.player_name ?? ''}
+                  color={CHART_COLORS[0]}
                 />
+                <div className="hidden md:flex items-center">
+                  <div className="h-full w-px bg-[var(--border)]" />
+                </div>
                 <ShotCourtPanel
                   shots={shots2 ?? []}
                   view={shotView}
                   isLoading={shots2Loading}
                   playerName={player2?.player_name ?? ''}
+                  color={CHART_COLORS[1]}
                 />
               </div>
             </div>
@@ -644,35 +787,37 @@ function CompareContent() {
           {/* ── Rolling Stats Tab ── */}
           {activeTab === 'rolling' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <span className="text-xs text-[var(--text-secondary)]">Stat:</span>
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Stat:</span>
                 <select
                   value={rollingStat}
                   onChange={(e) => setRollingStat(e.target.value as RollingStat)}
-                  className="h-9 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                  className="h-9 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] transition-colors"
                 >
                   {Object.entries(statConfig).map(([key, cfg]) => (
                     <option key={key} value={key}>{cfg.label}</option>
                   ))}
                 </select>
-                <span className="text-xs text-[var(--text-secondary)]">10-game rolling average</span>
+                <span className="text-xs text-[var(--text-tertiary)]">10-game rolling average</span>
               </div>
 
-              {rolling1Loading || rolling2Loading ? (
-                <Skeleton className="h-[350px] w-full" />
-              ) : rolling1 && rolling2 && (rolling1.length > 0 || rolling2.length > 0) ? (
-                <CompareRollingChart
-                  data1={rolling1 as unknown as { season_game_number: number; [k: string]: unknown }[]}
-                  data2={rolling2 as unknown as { season_game_number: number; [k: string]: unknown }[]}
-                  name1={player1?.player_name ?? 'Player 1'}
-                  name2={player2?.player_name ?? 'Player 2'}
-                  stat={rollingStat}
-                />
-              ) : (
-                <div className="py-16 text-center text-[var(--text-secondary)]">
-                  No rolling data available
-                </div>
-              )}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
+                {rolling1Loading || rolling2Loading ? (
+                  <Skeleton className="h-[350px] w-full" />
+                ) : rolling1 && rolling2 && (rolling1.length > 0 || rolling2.length > 0) ? (
+                  <CompareRollingChart
+                    data1={rolling1 as unknown as { season_game_number: number; [k: string]: unknown }[]}
+                    data2={rolling2 as unknown as { season_game_number: number; [k: string]: unknown }[]}
+                    name1={player1?.player_name ?? 'Player 1'}
+                    name2={player2?.player_name ?? 'Player 2'}
+                    stat={rollingStat}
+                  />
+                ) : (
+                  <div className="py-16 text-center text-[var(--text-secondary)]">
+                    No rolling data available
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </>

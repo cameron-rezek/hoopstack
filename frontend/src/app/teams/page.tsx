@@ -14,12 +14,12 @@ function TeamCard({ team }: { team: { team_id: number; team_name: string; team_a
   return (
     <Link
       href={`/teams/${team.team_id}`}
-      className="flex items-center gap-4 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-4 transition-colors hover:bg-[var(--bg-elevated)]"
+      className="card-glow flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 transition-all"
     >
       <div className="relative h-12 w-12 shrink-0">
         {imgError ? (
           <div className="flex h-full w-full items-center justify-center rounded-full bg-[var(--bg-elevated)]">
-            <Shield className="h-6 w-6 text-[var(--text-secondary)]" />
+            <Shield className="h-6 w-6 text-[var(--text-tertiary)]" />
           </div>
         ) : (
           <Image
@@ -33,11 +33,11 @@ function TeamCard({ team }: { team: { team_id: number; team_name: string; team_a
         )}
       </div>
       <div>
-        <div className="text-sm font-medium text-[var(--text-primary)]">
+        <div className="text-sm font-semibold text-[var(--text-primary)]">
           {team.city ? `${team.city} ${team.team_name}` : team.team_name}
         </div>
         <div className="text-xs text-[var(--text-secondary)]">
-          {[team.team_abbreviation, team.conference, team.division].filter(Boolean).join(' \u00B7 ')}
+          {[team.team_abbreviation, team.conference, team.division].filter(Boolean).join(' · ')}
         </div>
       </div>
     </Link>
@@ -50,9 +50,9 @@ export default function TeamsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Teams</h1>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Teams</h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Browse NBA teams
+          Browse all 30 NBA teams
         </p>
       </div>
 
@@ -63,7 +63,7 @@ export default function TeamsPage() {
           ))}
         </div>
       ) : teams ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {teams.map((team) => (
             <TeamCard key={team.team_id} team={team} />
           ))}

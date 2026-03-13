@@ -184,7 +184,7 @@ git push origin main
 - [x] Week 5-6: Game detail pages (box score, shot chart, game flow, PBP) — DONE (2026-03-03)
 - [x] Week 5-6: Leaderboards (shot quality + lineups) — DONE (2026-03-03)
 - [x] Week 5-6: Teams pages — DONE (2026-03-03)
-- [ ] Week 7: Player comparison dashboard
+- [x] Week 7: Player comparison dashboard — DONE (2026-03-12, radar chart, comparison bars, side-by-side shot charts, rolling stats overlay)
 - [ ] Week 7: Tableau Public portfolio (parallel track)
 
 ---
@@ -279,9 +279,9 @@ psql "host=192.168.1.22 port=5434 dbname=nba_analytics user=nba_admin password=E
 The stale checkpoint cleanup script was run before the final backfill. Removed 460 stale PBP entries. This issue is resolved — the code fix (errors no longer checkpointed) plus the one-time cleanup means checkpoints are now accurate.
 
 ### What Comes Next
-All ingestion is complete for 2023-2025. dbt staging + analytics layers are complete and validated. FastAPI backend is live with 20 endpoints. **Next.js frontend is live with 7 routes.**
-1. **Next:** Polish & deploy — bug fixes, responsive tweaks, Vercel deployment
-2. **Next:** Player comparison dashboard (side-by-side stat comparison)
+All ingestion is complete for 2023-2025. dbt staging + analytics layers are complete and validated. FastAPI backend is live with 20 endpoints. **Next.js frontend is live with 7 routes.** Player comparison dashboard completed 2026-03-12. Full UI overhaul completed 2026-03-12 (refined dark theme, gradient accents, radar chart, polished components).
+1. **Next:** Deploy — Vercel deployment for public portfolio access
+2. ~~**Next:** Player comparison dashboard~~ — DONE (2026-03-12)
 3. **Later:** Set up nightly incremental ingestion (cron/Airflow) for ongoing 2025-26 season games
 4. **Later:** Redis caching for expensive API queries, auth if needed
 5. **Later (optional):** Historical backfill 2010-2022 if needed for trend analysis features

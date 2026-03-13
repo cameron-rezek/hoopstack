@@ -86,12 +86,12 @@ export default function GameDetailPage({
             <Court>
               <GameShotScatter shots={shots} homeTeamId={game.home_team_id} />
             </Court>
-            <div className="mt-3 flex items-center justify-center gap-6 text-xs text-[var(--text-secondary)]">
-              <span className="flex items-center gap-1.5">
+            <div className="mt-4 flex items-center justify-center gap-6 text-xs text-[var(--text-secondary)]">
+              <span className="flex items-center gap-2">
                 <span className="inline-block h-3 w-3 rounded-full bg-[#6366f1]" />
                 {game.home_team_abbreviation} (Home)
               </span>
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-2">
                 <span className="inline-block h-3 w-3 rounded-full bg-[#f59e0b]" />
                 {game.away_team_abbreviation} (Away)
               </span>
@@ -105,9 +105,12 @@ export default function GameDetailPage({
           <Skeleton className="h-[300px] w-full" />
         ) : pbpEvents && pbpEvents.length > 0 ? (
           <div>
-            <GameFlowChart events={pbpEvents} />
-            <div className="mt-2 flex items-center justify-center gap-4 text-xs text-[var(--text-secondary)]">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
+              <GameFlowChart events={pbpEvents} />
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-4 text-xs text-[var(--text-tertiary)]">
               <span>Positive = Home leading</span>
+              <span>|</span>
               <span>Negative = Away leading</span>
             </div>
           </div>

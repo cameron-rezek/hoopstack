@@ -50,9 +50,9 @@ export default function LeaderboardsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Leaderboards</h1>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Leaderboards</h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Top performers for {season}
+          Top performers for the {season} season
         </p>
       </div>
 
@@ -60,16 +60,16 @@ export default function LeaderboardsPage() {
 
       {activeTab === 'shot-quality' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <label className="text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center gap-3">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
               Min shots:
-              <input
-                type="number"
-                value={minShots}
-                onChange={(e) => { setMinShots(Number(e.target.value)); setSqPage(1); }}
-                className="ml-2 h-8 w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2 text-sm text-[var(--text-primary)] outline-none"
-              />
             </label>
+            <input
+              type="number"
+              value={minShots}
+              onChange={(e) => { setMinShots(Number(e.target.value)); setSqPage(1); }}
+              className="h-8 w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2 text-sm font-mono text-[var(--text-primary)] outline-none focus:border-[var(--accent)] transition-colors"
+            />
           </div>
 
           {sqLoading ? (
@@ -88,16 +88,16 @@ export default function LeaderboardsPage() {
 
       {activeTab === 'lineups' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <label className="text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center gap-3">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
               Min minutes:
-              <input
-                type="number"
-                value={minMinutes}
-                onChange={(e) => { setMinMinutes(Number(e.target.value)); setLuPage(1); }}
-                className="ml-2 h-8 w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2 text-sm text-[var(--text-primary)] outline-none"
-              />
             </label>
+            <input
+              type="number"
+              value={minMinutes}
+              onChange={(e) => { setMinMinutes(Number(e.target.value)); setLuPage(1); }}
+              className="h-8 w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2 text-sm font-mono text-[var(--text-primary)] outline-none focus:border-[var(--accent)] transition-colors"
+            />
           </div>
 
           {luLoading ? (

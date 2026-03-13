@@ -34,16 +34,16 @@ function ButtonGroup<T extends string>({
   onChange: (key: T) => void;
 }) {
   return (
-    <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+    <div className="inline-flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-1">
       {items.map((item) => (
         <button
           key={item.key}
           onClick={() => onChange(item.key)}
           className={cn(
-            'px-3 py-1.5 text-xs font-medium transition-colors',
+            'rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
             active === item.key
-              ? 'bg-[var(--accent)] text-white'
-              : 'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]',
+              ? 'bg-[var(--accent)] text-white shadow-sm'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]',
           )}
         >
           {item.label}
@@ -58,12 +58,12 @@ export function ShotChartControls({
 }: ShotChartControlsProps) {
   return (
     <div className="flex flex-wrap items-center gap-4">
-      <div>
-        <span className="mr-2 text-xs text-[var(--text-secondary)]">View:</span>
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">View:</span>
         <ButtonGroup items={views} active={view} onChange={onViewChange} />
       </div>
-      <div>
-        <span className="mr-2 text-xs text-[var(--text-secondary)]">Filter:</span>
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Filter:</span>
         <ButtonGroup items={filters} active={filter} onChange={onFilterChange} />
       </div>
     </div>

@@ -26,7 +26,7 @@ const gameColumns: Column<TeamGameLog>[] = [
     header: 'Date',
     accessor: 'game_date',
     format: (_, row) => (
-      <Link href={`/games/${row.game_id}`} className="text-[var(--accent)] hover:underline">
+      <Link href={`/games/${row.game_id}`} className="text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors">
         {formatDate(row.game_date)}
       </Link>
     ),
@@ -37,7 +37,7 @@ const gameColumns: Column<TeamGameLog>[] = [
     header: 'W/L',
     accessor: 'win_loss',
     format: (v) => (
-      <span className={v === 'W' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}>
+      <span className={`inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold ${v === 'W' ? 'bg-[var(--success-muted)] text-[var(--success)]' : 'bg-[var(--danger-muted)] text-[var(--danger)]'}`}>
         {v as string}
       </span>
     ),
@@ -75,7 +75,7 @@ export default function TeamDetailPage({
   return (
     <div className="space-y-6">
       {teamLoading ? (
-        <div className="flex gap-6 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-6">
+        <div className="flex gap-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6">
           <Skeleton className="h-20 w-20" />
           <div className="space-y-2">
             <Skeleton className="h-8 w-48" />
@@ -83,30 +83,33 @@ export default function TeamDetailPage({
           </div>
         </div>
       ) : team ? (
-        <div className="flex items-center gap-6 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-6">
-          <div className="relative h-20 w-20 shrink-0">
-            {logoError ? (
-              <div className="flex h-full w-full items-center justify-center rounded-full bg-[var(--bg-elevated)]">
-                <Shield className="h-10 w-10 text-[var(--text-secondary)]" />
-              </div>
-            ) : (
-              <Image
-                src={teamLogoUrl(team.team_id)}
-                alt={team.team_abbreviation}
-                width={80}
-                height={80}
-                unoptimized
-                onError={() => setLogoError(true)}
-              />
-            )}
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-              {team.city ? `${team.city} ${team.team_name}` : team.team_name}
-            </h1>
-            <p className="text-sm text-[var(--text-secondary)]">
-              {[team.team_abbreviation, team.conference, team.division, team.arena_name].filter(Boolean).join(' \u00B7 ')}
-            </p>
+        <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-card)]">
+          <div className="h-16 bg-gradient-to-r from-[var(--accent)] to-purple-600 opacity-15" />
+          <div className="flex items-center gap-6 px-6 pb-6 -mt-8">
+            <div className="relative h-20 w-20 shrink-0 rounded-xl bg-[var(--bg-card)] p-2 ring-4 ring-[var(--bg-card)] shadow-lg">
+              {logoError ? (
+                <div className="flex h-full w-full items-center justify-center rounded-lg bg-[var(--bg-elevated)]">
+                  <Shield className="h-8 w-8 text-[var(--text-tertiary)]" />
+                </div>
+              ) : (
+                <Image
+                  src={teamLogoUrl(team.team_id)}
+                  alt={team.team_abbreviation}
+                  width={64}
+                  height={64}
+                  unoptimized
+                  onError={() => setLogoError(true)}
+                />
+              )}
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+                {team.city ? `${team.city} ${team.team_name}` : team.team_name}
+              </h1>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {[team.team_abbreviation, team.conference, team.division, team.arena_name].filter(Boolean).join(' · ')}
+              </p>
+            </div>
           </div>
         </div>
       ) : null}

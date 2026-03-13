@@ -27,17 +27,19 @@ function PlayersContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Players</h1>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Players</h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Search and browse NBA players
         </p>
       </div>
 
-      <SearchInput
-        value={search}
-        onChange={handleSearch}
-        placeholder="Search players..."
-      />
+      <div className="max-w-md">
+        <SearchInput
+          value={search}
+          onChange={handleSearch}
+          placeholder="Search by name..."
+        />
+      </div>
 
       <PlayerSearchResults
         players={data?.data ?? []}

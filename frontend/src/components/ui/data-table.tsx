@@ -57,7 +57,7 @@ export function DataTable<T>({
   };
 
   return (
-    <div className={cn('overflow-x-auto', className)}>
+    <div className={cn('overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--bg-card)]', className)}>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-[var(--border)]">
@@ -66,15 +66,15 @@ export function DataTable<T>({
                 key={idx}
                 onClick={() => handleSort(idx)}
                 className={cn(
-                  'px-3 py-2 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap',
-                  col.sortable && 'cursor-pointer select-none hover:text-[var(--text-primary)]',
+                  'px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)] whitespace-nowrap',
+                  col.sortable && 'cursor-pointer select-none hover:text-[var(--text-secondary)] transition-colors',
                   col.className,
                 )}
               >
                 <span className="inline-flex items-center gap-1">
                   {col.header}
                   {col.sortable && sortCol === idx && (
-                    sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+                    sortDir === 'asc' ? <ChevronUp className="h-3 w-3 text-[var(--accent)]" /> : <ChevronDown className="h-3 w-3 text-[var(--accent)]" />
                   )}
                 </span>
               </th>
@@ -87,9 +87,9 @@ export function DataTable<T>({
               key={rowIdx}
               onClick={() => onRowClick?.(row)}
               className={cn(
-                'border-b border-[var(--border)]/50 transition-colors',
-                'even:bg-[var(--bg-elevated)]/30',
-                onRowClick && 'cursor-pointer hover:bg-[var(--bg-elevated)]',
+                'border-b border-[var(--border-subtle)] transition-colors',
+                'hover:bg-[var(--bg-elevated)]',
+                onRowClick && 'cursor-pointer',
               )}
             >
               {columns.map((col, colIdx) => {
@@ -98,7 +98,7 @@ export function DataTable<T>({
                   <td
                     key={colIdx}
                     className={cn(
-                      'px-3 py-2 whitespace-nowrap text-[var(--text-primary)]',
+                      'px-4 py-2.5 whitespace-nowrap text-[var(--text-primary)]',
                       col.className,
                     )}
                   >
