@@ -19,7 +19,7 @@ export function ShotTooltip({ shot, x, y }: ShotTooltipProps) {
             {shot.action_type}
           </div>
           <div className="text-[var(--text-secondary)]">
-            {shot.shot_distance ? `${shot.shot_distance} ft` : ''} \u00B7{' '}
+            {shot.shot_distance ? `${shot.shot_distance} ft` : ''}{' \u00B7 '}
             <span className={shot.is_made ? 'text-[var(--success)]' : 'text-[var(--danger)]'}>
               {shot.is_made ? 'Made' : 'Missed'}
             </span>

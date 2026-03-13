@@ -4,12 +4,18 @@ import { cn } from '@/lib/utils';
 
 export type ShotView = 'scatter' | 'hexbin' | 'zones';
 export type ShotFilter = 'all' | '2pt' | '3pt';
+export type QuarterFilter = 'all' | '1' | '2' | '3' | '4';
+export type ResultFilter = 'all' | 'made' | 'missed';
 
 interface ShotChartControlsProps {
   view: ShotView;
   onViewChange: (view: ShotView) => void;
   filter: ShotFilter;
   onFilterChange: (filter: ShotFilter) => void;
+  quarter?: QuarterFilter;
+  onQuarterChange?: (quarter: QuarterFilter) => void;
+  result?: ResultFilter;
+  onResultChange?: (result: ResultFilter) => void;
 }
 
 const views: { key: ShotView; label: string }[] = [
@@ -22,6 +28,20 @@ const filters: { key: ShotFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: '2pt', label: '2PT' },
   { key: '3pt', label: '3PT' },
+];
+
+const quarters: { key: QuarterFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: '1', label: 'Q1' },
+  { key: '2', label: 'Q2' },
+  { key: '3', label: 'Q3' },
+  { key: '4', label: 'Q4' },
+];
+
+const results: { key: ResultFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'made', label: 'Made' },
+  { key: 'missed', label: 'Missed' },
 ];
 
 function ButtonGroup<T extends string>({
@@ -55,6 +75,7 @@ function ButtonGroup<T extends string>({
 
 export function ShotChartControls({
   view, onViewChange, filter, onFilterChange,
+  quarter, onQuarterChange, result, onResultChange,
 }: ShotChartControlsProps) {
   return (
     <div className="flex flex-wrap items-center gap-4">
@@ -63,9 +84,21 @@ export function ShotChartControls({
         <ButtonGroup items={views} active={view} onChange={onViewChange} />
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Filter:</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Type:</span>
         <ButtonGroup items={filters} active={filter} onChange={onFilterChange} />
       </div>
+      {quarter !== undefined && onQuarterChange && (
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Qtr:</span>
+          <ButtonGroup items={quarters} active={quarter} onChange={onQuarterChange} />
+        </div>
+      )}
+      {result !== undefined && onResultChange && (
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Result:</span>
+          <ButtonGroup items={results} active={result} onChange={onResultChange} />
+        </div>
+      )}
     </div>
   );
 }

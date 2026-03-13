@@ -16,7 +16,8 @@ export function Court({ children, className }: CourtProps) {
     RESTRICTED_RADIUS,
   } = COURT;
 
-  const lineColor = 'var(--border)';
+  const lineColor = 'var(--text-tertiary)';
+  const paintFill = 'rgba(99, 102, 241, 0.03)';
   const lineWidth = 1;
 
   // Three-point arc: from left corner to right corner
@@ -60,7 +61,7 @@ export function Court({ children, className }: CourtProps) {
         y={0}
         width={PAINT_WIDTH}
         height={PAINT_HEIGHT}
-        fill="none"
+        fill={paintFill}
         stroke={lineColor}
         strokeWidth={lineWidth}
       />

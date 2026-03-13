@@ -11,7 +11,10 @@ import { Court } from '@/components/shots/court';
 import { ShotScatter } from '@/components/shots/shot-scatter';
 import { ShotHexbin } from '@/components/shots/shot-hexbin';
 import { ShotZones } from '@/components/shots/shot-zones';
-import { ShotChartControls, type ShotView, type ShotFilter } from '@/components/shots/shot-chart-controls';
+import { ShotChartControls, type ShotView, type ShotFilter, type QuarterFilter, type ResultFilter } from '@/components/shots/shot-chart-controls';
+import { EfficiencyLegend } from '@/components/shots/efficiency-legend';
+import { ShotDistributionTable } from '@/components/shots/shot-distribution-table';
+import { ActionTypeBreakdown } from '@/components/shots/action-type-breakdown';
 import { RollingLineChart, statConfig, type RollingStat } from '@/components/charts/rolling-line-chart';
 import { StatTrend } from '@/components/charts/stat-trend';
 import { Tabs } from '@/components/ui/tabs';
@@ -19,6 +22,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { StatCard } from '@/components/ui/stat-card';
 import { Skeleton } from '@/components/ui/loading-skeleton';
 import { ErrorDisplay } from '@/components/ui/error-display';
+import { useShotQualityPercentiles } from '@/lib/hooks/use-percentiles';
 import { formatPct, formatStat } from '@/lib/utils';
 
 const tabs = [
@@ -38,6 +42,8 @@ export default function PlayerProfilePage({
   const [page, setPage] = useState(1);
   const [shotView, setShotView] = useState<ShotView>('scatter');
   const [shotFilter, setShotFilter] = useState<ShotFilter>('all');
+  const [quarterFilter, setQuarterFilter] = useState<QuarterFilter>('all');
+  const [resultFilter, setResultFilter] = useState<ResultFilter>('all');
   const [rollingStat, setRollingStat] = useState<RollingStat>('points');
   const { season } = useSeason();
 
@@ -50,25 +56,38 @@ export default function PlayerProfilePage({
   const { data: allShots, isLoading: shotsLoading } = useAllPlayerShots(playerId, { season });
   const { data: rollingData, isLoading: rollingLoading } = usePlayerRolling(playerId, { season });
   const { data: shotQuality } = usePlayerShotQuality(playerId, { season });
+  const percentiles = useShotQualityPercentiles(playerId);
 
   const filteredShots = useMemo(() => {
     if (!allShots) return [];
-    if (shotFilter === '2pt') return allShots.filter((s) => s.shot_value === 2);
-    if (shotFilter === '3pt') return allShots.filter((s) => s.shot_value === 3);
-    return allShots;
-  }, [allShots, shotFilter]);
+    let filtered = allShots;
+    if (shotFilter === '2pt') filtered = filtered.filter((s) => s.shot_value === 2);
+    if (shotFilter === '3pt') filtered = filtered.filter((s) => s.shot_value === 3);
+    if (quarterFilter !== 'all') filtered = filtered.filter((s) => s.period === parseInt(quarterFilter, 10));
+    if (resultFilter === 'made') filtered = filtered.filter((s) => s.is_made);
+    if (resultFilter === 'missed') filtered = filtered.filter((s) => !s.is_made);
+    return filtered;
+  }, [allShots, shotFilter, quarterFilter, resultFilter]);
 
   const shotStats = useMemo(() => {
     if (!filteredShots.length) return null;
     const total = filteredShots.length;
     const makes = filteredShots.filter((s) => s.is_made).length;
+    const twos = filteredShots.filter((s) => s.shot_value === 2);
+    const twosMade = twos.filter((s) => s.is_made).length;
     const threes = filteredShots.filter((s) => s.shot_value === 3);
     const threesMade = threes.filter((s) => s.is_made).length;
     const points = filteredShots.reduce((sum, s) => sum + (s.is_made ? s.shot_value : 0), 0);
+    const fgPct = makes / total;
+    const efgPct = (makes + 0.5 * threesMade) / total;
+    const ptsPerShot = points / total;
     return {
       total,
-      fgPct: makes / total,
+      fgPct,
+      twoPct: twos.length > 0 ? twosMade / twos.length : null,
       threePct: threes.length > 0 ? threesMade / threes.length : null,
+      efgPct,
+      ptsPerShot,
       points,
     };
   }, [filteredShots]);
@@ -124,33 +143,74 @@ export default function PlayerProfilePage({
             onViewChange={setShotView}
             filter={shotFilter}
             onFilterChange={setShotFilter}
+            quarter={quarterFilter}
+            onQuarterChange={setQuarterFilter}
+            result={resultFilter}
+            onResultChange={setResultFilter}
           />
 
           {shotsLoading ? (
             <Skeleton className="mx-auto h-[470px] max-w-[500px]" />
           ) : (
-            <div className="mx-auto max-w-[600px]">
+            <div className="mx-auto max-w-[700px]">
               <Court>
                 {shotView === 'scatter' && <ShotScatter shots={filteredShots} />}
                 {shotView === 'hexbin' && <ShotHexbin shots={filteredShots} />}
                 {shotView === 'zones' && <ShotZones shots={filteredShots} />}
               </Court>
 
-              {shotStats && (
-                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <StatCard label="Total Shots" value={shotStats.total} />
-                  <StatCard label="FG%" value={formatPct(shotStats.fgPct)} />
-                  <StatCard label="3P%" value={shotStats.threePct !== null ? formatPct(shotStats.threePct) : '\u2014'} />
-                  <StatCard label="Points" value={shotStats.points} accent />
-                </div>
+              {(shotView === 'hexbin' || shotView === 'zones') && (
+                <EfficiencyLegend />
               )}
-            </div>
-          )}
 
-          {allShots && (
-            <p className="text-center text-xs text-[var(--text-tertiary)]">
-              {allShots.length} shots loaded
-            </p>
+              {shotStats && (
+                <>
+                  <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
+                    <StatCard label="FGA" value={shotStats.total} />
+                    <StatCard label="FG%" value={formatPct(shotStats.fgPct)} />
+                    <StatCard label="eFG%" value={formatPct(shotStats.efgPct)} />
+                    <StatCard label="2P%" value={shotStats.twoPct !== null ? formatPct(shotStats.twoPct) : '\u2014'} />
+                    <StatCard label="3P%" value={shotStats.threePct !== null ? formatPct(shotStats.threePct) : '\u2014'} />
+                    <StatCard label="PTS/Shot" value={shotStats.ptsPerShot.toFixed(2)} accent />
+                  </div>
+
+                  {shotQuality && shotQuality.length > 0 && (
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <StatCard
+                        label="Shot Quality"
+                        value={formatStat(shotQuality[0].shot_quality_score)}
+                        subtitle="Shot selection"
+                        percentile={percentiles?.shotQuality}
+                      />
+                      <StatCard
+                        label="Shot Making"
+                        value={formatStat(shotQuality[0].shot_making_score)}
+                        subtitle="Shooting skill"
+                        percentile={percentiles?.shotMaking}
+                      />
+                      <StatCard
+                        label="PAX/100"
+                        value={formatStat(shotQuality[0].pax_per_100_shots)}
+                        subtitle="Points above expected"
+                        accent
+                        percentile={percentiles?.paxPer100}
+                      />
+                      <StatCard
+                        label="Total PAX"
+                        value={formatStat(shotQuality[0].total_points_above_expected, 0)}
+                        subtitle={`${formatStat(shotQuality[0].total_expected_points, 0)} exp / ${formatStat(shotQuality[0].total_actual_points, 0)} actual`}
+                        percentile={percentiles?.totalPax}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="mt-6 space-y-4">
+                <ShotDistributionTable shots={filteredShots} />
+                <ActionTypeBreakdown shots={filteredShots} />
+              </div>
+            </div>
           )}
         </div>
       )}

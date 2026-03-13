@@ -15,7 +15,7 @@ export function ShotHexbin({ shots }: ShotHexbinProps) {
     const hexbinGen = d3Hexbin<ShotChartItem>()
       .x((d) => (d.loc_x ?? 0) + COURT.OFFSET_X)
       .y((d) => (d.loc_y ?? 0) + COURT.OFFSET_Y)
-      .radius(12)
+      .radius(10)
       .extent([[0, 0], [COURT.WIDTH, COURT.HEIGHT]]);
 
     const bins = hexbinGen(shots);
@@ -32,10 +32,10 @@ export function ShotHexbin({ shots }: ShotHexbinProps) {
 
     // Size scale based on frequency
     const maxCount = d3.max(bins, (b) => b.length) ?? 1;
-    const sizeScale = d3.scaleSqrt().domain([0, maxCount]).range([0, 12]);
+    const sizeScale = d3.scaleSqrt().domain([0, maxCount]).range([0, 10]);
 
     return bins
-      .filter((b) => b.length >= 3)
+      .filter((b) => b.length >= 2)
       .map((b) => {
         const makes = b.filter((s) => s.is_made).length;
         const fgPct = makes / b.length;
