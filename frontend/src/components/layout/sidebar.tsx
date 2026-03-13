@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Shield, Trophy } from 'lucide-react';
+import { Home, Users, Shield, Trophy, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/players', label: 'Players', icon: Users },
   { href: '/teams', label: 'Teams', icon: Shield },
+  { href: '/compare', label: 'Compare', icon: ArrowRightLeft },
   { href: '/leaderboards', label: 'Leaderboards', icon: Trophy },
 ];
 
