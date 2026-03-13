@@ -28,7 +28,7 @@ import { fetchPlayerGames } from '@/lib/api';
 import { fetchAllPages } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { playerHeadshotUrl, CHART_COLORS, CHART_THEME } from '@/lib/constants';
-import { chartMargin, tooltipStyle } from '@/components/charts/chart-theme';
+import { tooltipStyle } from '@/components/charts/chart-theme';
 import { Court } from '@/components/shots/court';
 import { ShotScatter } from '@/components/shots/shot-scatter';
 import { ShotHexbin } from '@/components/shots/shot-hexbin';
@@ -210,7 +210,7 @@ function usePlayerSeasonAverages(playerId: number) {
 
 type SeasonAverages = NonNullable<ReturnType<typeof usePlayerSeasonAverages>['data']>;
 
-// ── Stat Comparison Bar ─────────────────────────────────────
+// ── Stat Comparison Bar (CtG-inspired) ──────────────────────
 
 function CompareBar({
   label,
@@ -222,7 +222,7 @@ function CompareBar({
   label: string;
   val1: number | null;
   val2: number | null;
-  format?: 'stat' | 'pct' | 'plusminus';
+  format?: 'stat' | 'pct' | 'pctRaw' | 'plusminus';
   higherIsBetter?: boolean;
 }) {
   const v1 = val1 ?? 0;
@@ -234,8 +234,16 @@ function CompareBar({
   const fmt = (v: number | null) => {
     if (v === null) return '\u2014';
     if (format === 'pct') return formatPct(v);
-    if (format === 'plusminus') return formatPlusMinus(v);
+    if (format === 'pctRaw') return `${v.toFixed(1)}%`;
+    if (format === 'plusminus') return v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1);
     return formatStat(v);
+  };
+
+  const delta = Math.abs(v1 - v2);
+  const fmtDelta = () => {
+    if (format === 'pct') return `${(delta * 100).toFixed(1)}%`;
+    if (format === 'pctRaw') return `${delta.toFixed(1)}%`;
+    return delta.toFixed(1);
   };
 
   const leader1 = higherIsBetter ? v1 > v2 : v1 < v2;
@@ -247,51 +255,77 @@ function CompareBar({
       {/* Player 1 bar (grows right to left) */}
       <div className="flex items-center gap-2">
         <span className={cn(
-          'font-mono text-sm tabular-nums min-w-[52px] text-right',
-          leader1 && !tie ? 'font-bold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]',
+          'font-mono text-sm tabular-nums min-w-[52px] text-right transition-colors',
+          leader1 && !tie ? 'font-bold text-[#818cf8]' : 'text-[var(--text-secondary)]',
         )}>
           {fmt(val1)}
         </span>
         <div className="flex-1 flex justify-end">
           <div
             className={cn(
-              'h-5 rounded-l-md transition-all duration-500',
+              'h-[22px] rounded-l-md transition-all duration-500',
               leader1 && !tie
-                ? 'bg-gradient-to-l from-[#6366f1] to-[#6366f1]/60'
-                : 'bg-[var(--bg-elevated)]',
+                ? 'bg-gradient-to-l from-[#6366f1] to-[#6366f1]/50'
+                : 'bg-gradient-to-l from-[#6366f1]/25 to-[#6366f1]/10',
             )}
             style={{ width: `${pct1}%` }}
           />
         </div>
       </div>
 
-      {/* Label */}
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)] min-w-[44px] text-center">
-        {label}
-      </span>
+      {/* Center label + delta */}
+      <div className="flex flex-col items-center min-w-[56px]">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+          {label}
+        </span>
+        {!tie && (
+          <span className={cn(
+            'text-[10px] font-mono tabular-nums mt-0.5',
+            leader1 ? 'text-[#818cf8]/70' : 'text-[#4ade80]/70',
+          )}>
+            +{fmtDelta()}
+          </span>
+        )}
+      </div>
 
       {/* Player 2 bar (grows left to right) */}
       <div className="flex items-center gap-2">
         <div className="flex-1">
           <div
             className={cn(
-              'h-5 rounded-r-md transition-all duration-500',
+              'h-[22px] rounded-r-md transition-all duration-500',
               leader2 && !tie
-                ? 'bg-gradient-to-r from-[#22c55e] to-[#22c55e]/60'
-                : 'bg-[var(--bg-elevated)]',
+                ? 'bg-gradient-to-r from-[#22c55e] to-[#22c55e]/50'
+                : 'bg-gradient-to-r from-[#22c55e]/25 to-[#22c55e]/10',
             )}
             style={{ width: `${pct2}%` }}
           />
         </div>
         <span className={cn(
-          'font-mono text-sm tabular-nums min-w-[52px]',
-          leader2 && !tie ? 'font-bold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]',
+          'font-mono text-sm tabular-nums min-w-[52px] transition-colors',
+          leader2 && !tie ? 'font-bold text-[#4ade80]' : 'text-[var(--text-secondary)]',
         )}>
           {fmt(val2)}
         </span>
       </div>
     </div>
   );
+}
+
+// Count how many stats one player "wins" in a set of comparisons
+function countWins(
+  stats: { val1: number | null; val2: number | null; higherIsBetter?: boolean }[],
+): [number, number] {
+  let w1 = 0, w2 = 0;
+  for (const { val1, val2, higherIsBetter = true } of stats) {
+    const v1 = val1 ?? 0;
+    const v2 = val2 ?? 0;
+    if (v1 === v2) continue;
+    const p1Leads = higherIsBetter ? v1 > v2 : v1 < v2;
+    if (p1Leads) w1++;
+    else w2++;
+  }
+  return [w1, w2];
 }
 
 // ── Radar Chart Comparison ──────────────────────────────────
@@ -503,23 +537,37 @@ function CompareRollingChart({
   const formatVal = (v: number | null | undefined) => {
     if (v === null || v === undefined) return '';
     if (config.isPct) return `${(v * 100).toFixed(1)}%`;
+    if (config.isPctRaw) return `${v.toFixed(1)}%`;
     return v.toFixed(1);
   };
 
+  // Pick ~10 evenly spaced ticks so x-axis stays readable
+  const gameNums = merged.map((d) => d.game as number);
+  const xTicks = useMemo(() => {
+    if (gameNums.length <= 12) return gameNums;
+    const step = Math.ceil(gameNums.length / 10);
+    const ticks = gameNums.filter((_, i) => i % step === 0);
+    // Always include the last game
+    const last = gameNums[gameNums.length - 1];
+    if (ticks[ticks.length - 1] !== last) ticks.push(last);
+    return ticks;
+  }, [gameNums]);
+
   return (
-    <ResponsiveContainer width="100%" height={350}>
-      <LineChart data={merged} margin={chartMargin}>
+    <ResponsiveContainer width="100%" height={370}>
+      <LineChart data={merged} margin={{ top: 5, right: 20, bottom: 30, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.gridColor} />
         <XAxis
           dataKey="game"
+          ticks={xTicks}
           tick={{ fill: CHART_THEME.textColor, fontSize: 11 }}
           axisLine={{ stroke: CHART_THEME.gridColor }}
-          label={{ value: 'Game #', position: 'bottom', fill: CHART_THEME.textColor, fontSize: 11 }}
+          label={{ value: 'Game #', position: 'insideBottom', offset: -15, fill: CHART_THEME.textColor, fontSize: 11 }}
         />
         <YAxis
           tick={{ fill: CHART_THEME.textColor, fontSize: 11 }}
           axisLine={{ stroke: CHART_THEME.gridColor }}
-          tickFormatter={(v) => config.isPct ? `${(v * 100).toFixed(0)}%` : String(v)}
+          tickFormatter={(v) => config.isPct ? `${(v * 100).toFixed(0)}%` : config.isPctRaw ? `${v.toFixed(0)}%` : String(v)}
         />
         <Tooltip
           {...tooltipStyle}
@@ -527,7 +575,8 @@ function CompareRollingChart({
           labelFormatter={(label) => `Game ${label}`}
         />
         <Legend
-          wrapperStyle={{ fontSize: 12, color: CHART_THEME.textColor }}
+          verticalAlign="top"
+          wrapperStyle={{ fontSize: 12, color: CHART_THEME.textColor, paddingBottom: 8 }}
         />
         <Line
           type="monotone"
@@ -554,11 +603,36 @@ function CompareRollingChart({
 
 // ── Section Card ────────────────────────────────────────────
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({
+  title,
+  children,
+  wins,
+}: {
+  title: string;
+  children: React.ReactNode;
+  wins?: [number, number];
+}) {
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
-      <div className="border-b border-[var(--border-subtle)] px-5 py-3">
+      <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-5 py-3">
         <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">{title}</h3>
+        {wins && (wins[0] > 0 || wins[1] > 0) && (
+          <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums">
+            <span className={cn(
+              'px-1.5 py-0.5 rounded',
+              wins[0] > wins[1] ? 'bg-[#6366f1]/20 text-[#818cf8] font-bold' : 'text-[var(--text-tertiary)]',
+            )}>
+              {wins[0]}
+            </span>
+            <span className="text-[var(--text-tertiary)]">—</span>
+            <span className={cn(
+              'px-1.5 py-0.5 rounded',
+              wins[1] > wins[0] ? 'bg-[#22c55e]/20 text-[#4ade80] font-bold' : 'text-[var(--text-tertiary)]',
+            )}>
+              {wins[1]}
+            </span>
+          </div>
+        )}
       </div>
       <div className="px-5 py-3">{children}</div>
     </div>
@@ -723,36 +797,69 @@ function CompareContent() {
                 </div>
               ) : avg1 && avg2 ? (
                 <>
-                  <SectionCard title="Per Game Averages">
-                    <CompareBar label="PPG" val1={avg1.ppg} val2={avg2.ppg} />
-                    <CompareBar label="RPG" val1={avg1.rpg} val2={avg2.rpg} />
-                    <CompareBar label="APG" val1={avg1.apg} val2={avg2.apg} />
-                    <CompareBar label="SPG" val1={avg1.spg} val2={avg2.spg} />
-                    <CompareBar label="BPG" val1={avg1.bpg} val2={avg2.bpg} />
-                    <CompareBar label="TOV" val1={avg1.topg} val2={avg2.topg} higherIsBetter={false} />
-                    <CompareBar label="MPG" val1={avg1.mpg} val2={avg2.mpg} />
-                    <CompareBar label="+/-" val1={avg1.plus_minus} val2={avg2.plus_minus} format="plusminus" />
-                  </SectionCard>
+                  {(() => {
+                    const perGameStats = [
+                      { val1: avg1.ppg, val2: avg2.ppg },
+                      { val1: avg1.rpg, val2: avg2.rpg },
+                      { val1: avg1.apg, val2: avg2.apg },
+                      { val1: avg1.spg, val2: avg2.spg },
+                      { val1: avg1.bpg, val2: avg2.bpg },
+                      { val1: avg1.topg, val2: avg2.topg, higherIsBetter: false },
+                      { val1: avg1.mpg, val2: avg2.mpg },
+                      { val1: avg1.plus_minus, val2: avg2.plus_minus },
+                    ];
+                    return (
+                      <SectionCard title="Per Game Averages" wins={countWins(perGameStats)}>
+                        <CompareBar label="PPG" val1={avg1.ppg} val2={avg2.ppg} />
+                        <CompareBar label="RPG" val1={avg1.rpg} val2={avg2.rpg} />
+                        <CompareBar label="APG" val1={avg1.apg} val2={avg2.apg} />
+                        <CompareBar label="SPG" val1={avg1.spg} val2={avg2.spg} />
+                        <CompareBar label="BPG" val1={avg1.bpg} val2={avg2.bpg} />
+                        <CompareBar label="TOV" val1={avg1.topg} val2={avg2.topg} higherIsBetter={false} />
+                        <CompareBar label="MPG" val1={avg1.mpg} val2={avg2.mpg} />
+                        <CompareBar label="+/-" val1={avg1.plus_minus} val2={avg2.plus_minus} format="plusminus" />
+                      </SectionCard>
+                    );
+                  })()}
 
-                  <SectionCard title="Shooting Efficiency">
-                    <CompareBar label="FG%" val1={avg1.fg_pct} val2={avg2.fg_pct} format="pct" />
-                    <CompareBar label="3P%" val1={avg1.fg3_pct} val2={avg2.fg3_pct} format="pct" />
-                    <CompareBar label="FT%" val1={avg1.ft_pct} val2={avg2.ft_pct} format="pct" />
-                    <CompareBar label="TS%" val1={avg1.ts_pct} val2={avg2.ts_pct} format="pct" />
-                    <CompareBar label="USG%" val1={avg1.usage} val2={avg2.usage} format="pct" />
-                    <CompareBar label="GmSc" val1={avg1.game_score} val2={avg2.game_score} />
-                  </SectionCard>
+                  {(() => {
+                    const shootingStats = [
+                      { val1: avg1.fg_pct, val2: avg2.fg_pct },
+                      { val1: avg1.fg3_pct, val2: avg2.fg3_pct },
+                      { val1: avg1.ft_pct, val2: avg2.ft_pct },
+                      { val1: avg1.ts_pct, val2: avg2.ts_pct },
+                      { val1: avg1.usage, val2: avg2.usage },
+                      { val1: avg1.game_score, val2: avg2.game_score },
+                    ];
+                    return (
+                      <SectionCard title="Shooting Efficiency" wins={countWins(shootingStats)}>
+                        <CompareBar label="FG%" val1={avg1.fg_pct} val2={avg2.fg_pct} format="pct" />
+                        <CompareBar label="3P%" val1={avg1.fg3_pct} val2={avg2.fg3_pct} format="pct" />
+                        <CompareBar label="FT%" val1={avg1.ft_pct} val2={avg2.ft_pct} format="pct" />
+                        <CompareBar label="TS%" val1={avg1.ts_pct} val2={avg2.ts_pct} format="pct" />
+                        <CompareBar label="USG%" val1={avg1.usage} val2={avg2.usage} format="pctRaw" />
+                        <CompareBar label="GmSc" val1={avg1.game_score} val2={avg2.game_score} />
+                      </SectionCard>
+                    );
+                  })()}
                 </>
               ) : null}
 
               {/* Shot quality */}
-              {sq1 && sq1.length > 0 && sq2 && sq2.length > 0 && (
-                <SectionCard title="Shot Quality Metrics">
-                  <CompareBar label="PAX/100" val1={sq1[0].pax_per_100_shots} val2={sq2[0].pax_per_100_shots} />
-                  <CompareBar label="Quality" val1={sq1[0].shot_quality_score} val2={sq2[0].shot_quality_score} />
-                  <CompareBar label="Making" val1={sq1[0].shot_making_score} val2={sq2[0].shot_making_score} />
-                </SectionCard>
-              )}
+              {sq1 && sq1.length > 0 && sq2 && sq2.length > 0 && (() => {
+                const sqStats = [
+                  { val1: sq1[0].pax_per_100_shots, val2: sq2[0].pax_per_100_shots },
+                  { val1: sq1[0].shot_quality_score, val2: sq2[0].shot_quality_score },
+                  { val1: sq1[0].shot_making_score, val2: sq2[0].shot_making_score },
+                ];
+                return (
+                  <SectionCard title="Shot Quality Metrics" wins={countWins(sqStats)}>
+                    <CompareBar label="PAX/100" val1={sq1[0].pax_per_100_shots} val2={sq2[0].pax_per_100_shots} />
+                    <CompareBar label="Quality" val1={sq1[0].shot_quality_score} val2={sq2[0].shot_quality_score} />
+                    <CompareBar label="Making" val1={sq1[0].shot_making_score} val2={sq2[0].shot_making_score} />
+                  </SectionCard>
+                );
+              })()}
             </div>
           )}
 

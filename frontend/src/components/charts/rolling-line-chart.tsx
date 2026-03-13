@@ -31,12 +31,13 @@ const statConfig: Record<RollingStat, {
   avg20: string;
   season: string;
   isPct?: boolean;
+  isPctRaw?: boolean; // already a percentage (e.g. 32.1 not 0.321)
 }> = {
   points: { label: 'Points', game: 'points', avg5: 'points_avg_5g', avg10: 'points_avg_10g', avg20: 'points_avg_20g', season: 'points_avg_season' },
   assists: { label: 'Assists', game: 'assists', avg5: 'assists_avg_5g', avg10: 'assists_avg_10g', avg20: 'assists_avg_20g', season: 'assists_avg_season' },
   total_rebounds: { label: 'Rebounds', game: 'total_rebounds', avg5: 'rebounds_avg_5g', avg10: 'rebounds_avg_10g', avg20: 'rebounds_avg_20g', season: 'rebounds_avg_season' },
   true_shooting_pct: { label: 'TS%', game: 'true_shooting_pct', avg5: 'ts_pct_avg_5g', avg10: 'ts_pct_avg_10g', avg20: 'ts_pct_avg_20g', season: 'ts_pct_avg_season', isPct: true },
-  usage_rate: { label: 'Usage Rate', game: 'usage_rate', avg5: 'usage_avg_5g', avg10: 'usage_avg_10g', avg20: 'usage_avg_20g', season: 'usage_avg_season', isPct: true },
+  usage_rate: { label: 'Usage Rate', game: 'usage_rate', avg5: 'usage_avg_5g', avg10: 'usage_avg_10g', avg20: 'usage_avg_20g', season: 'usage_avg_season', isPctRaw: true },
   game_score: { label: 'Game Score', game: 'game_score', avg5: 'game_score_avg_5g', avg10: 'game_score_avg_10g', avg20: 'game_score_avg_20g', season: 'game_score_avg_season' },
   plus_minus: { label: '+/-', game: 'plus_minus', avg5: 'plus_minus_avg_5g', avg10: 'plus_minus_avg_10g', avg20: 'plus_minus_avg_20g', season: 'plus_minus_avg_season' },
 };
@@ -55,6 +56,7 @@ export function RollingLineChart({ data, stat }: RollingLineChartProps) {
   const formatVal = (v: number | null | undefined) => {
     if (v === null || v === undefined) return '';
     if (config.isPct) return `${(v * 100).toFixed(1)}%`;
+    if (config.isPctRaw) return `${v.toFixed(1)}%`;
     return v.toFixed(1);
   };
 
@@ -71,7 +73,7 @@ export function RollingLineChart({ data, stat }: RollingLineChartProps) {
         <YAxis
           tick={{ fill: CHART_THEME.textColor, fontSize: 11 }}
           axisLine={{ stroke: CHART_THEME.gridColor }}
-          tickFormatter={(v) => config.isPct ? `${(v * 100).toFixed(0)}%` : String(v)}
+          tickFormatter={(v) => config.isPct ? `${(v * 100).toFixed(0)}%` : config.isPctRaw ? `${v.toFixed(0)}%` : String(v)}
         />
         <Tooltip
           {...tooltipStyle}
