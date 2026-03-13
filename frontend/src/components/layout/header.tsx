@@ -1,7 +1,8 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { SeasonSelector } from './season-selector';
+import { SearchInput } from '@/components/ui/search-input';
 
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
@@ -23,7 +24,14 @@ function getPageTitle(pathname: string): string {
 
 export function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const title = getPageTitle(pathname);
+
+  const handleSearch = (value: string) => {
+    if (value.trim()) {
+      router.push(`/players?search=${encodeURIComponent(value.trim())}`);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 px-6 backdrop-blur-md">
@@ -31,6 +39,13 @@ export function Header() {
         <h1 className="text-sm font-semibold text-[var(--text-primary)]">
           {title}
         </h1>
+      </div>
+      <div className="hidden md:block w-full max-w-xs mx-6">
+        <SearchInput
+          onChange={handleSearch}
+          placeholder="Search players..."
+          debounceMs={300}
+        />
       </div>
       <SeasonSelector />
     </header>

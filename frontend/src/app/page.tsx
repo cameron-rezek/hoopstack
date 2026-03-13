@@ -1,24 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
-import { fetchHealth, fetchShotQualityLeaderboard } from '@/lib/api';
+import { fetchHealth, fetchShotQualityLeaderboard, fetchPlayerShots } from '@/lib/api';
 import { useSeason } from '@/contexts/season-context';
-import { SearchInput } from '@/components/ui/search-input';
 import { formatStat, formatPct } from '@/lib/utils';
+import { COURT, SHOT_COLORS, teamLogoUrl, playerHeadshotUrl } from '@/lib/constants';
 import {
   Users,
   Crosshair,
   TrendingUp,
-  ArrowRightLeft,
   Trophy,
-  Shield,
   ArrowRight,
   Activity,
   Database,
   Loader2,
+  Zap,
 } from 'lucide-react';
 
 interface HealthData {
@@ -50,8 +49,58 @@ function AnimatedCounter({ target, duration = 1200 }: { target: number; duration
   return <>{count.toLocaleString()}</>;
 }
 
+function MiniCourt({ shots }: { shots: { loc_x: number | null; loc_y: number | null; is_made: boolean }[] }) {
+  const { WIDTH, HEIGHT, BASKET_X, BASKET_Y, BASKET_RADIUS, BACKBOARD_WIDTH,
+    PAINT_WIDTH, PAINT_HEIGHT, FREE_THROW_RADIUS,
+    THREE_PT_RADIUS, THREE_PT_SIDE_Y, THREE_PT_SIDE_X,
+    RESTRICTED_RADIUS } = COURT;
+
+  const lineColor = 'var(--text-tertiary)';
+  const paintFill = 'rgba(99, 102, 241, 0.03)';
+  const lineWidth = 1;
+
+  const threeArcStartX = WIDTH / 2 - THREE_PT_SIDE_X;
+  const threeArcEndX = WIDTH / 2 + THREE_PT_SIDE_X;
+  const threeArcY = THREE_PT_SIDE_Y;
+
+  const threeArc = `M ${threeArcStartX} ${threeArcY} A ${THREE_PT_RADIUS} ${THREE_PT_RADIUS} 0 0 1 ${threeArcEndX} ${threeArcY}`;
+  const restrictedArc = `M ${BASKET_X - RESTRICTED_RADIUS} ${BASKET_Y} A ${RESTRICTED_RADIUS} ${RESTRICTED_RADIUS} 0 0 1 ${BASKET_X + RESTRICTED_RADIUS} ${BASKET_Y}`;
+
+  return (
+    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="xMidYMid meet" width="100%" height="auto">
+      <rect x={0} y={0} width={WIDTH} height={HEIGHT} fill="var(--bg-card)" rx={8} />
+      <rect x={0} y={0} width={WIDTH} height={HEIGHT} fill="none" stroke={lineColor} strokeWidth={lineWidth} rx={8} />
+      <rect x={(WIDTH - PAINT_WIDTH) / 2} y={0} width={PAINT_WIDTH} height={PAINT_HEIGHT} fill={paintFill} stroke={lineColor} strokeWidth={lineWidth} />
+      <circle cx={BASKET_X} cy={PAINT_HEIGHT} r={FREE_THROW_RADIUS} fill="none" stroke={lineColor} strokeWidth={lineWidth} strokeDasharray="4 4" />
+      <path d={`M ${BASKET_X - FREE_THROW_RADIUS} ${PAINT_HEIGHT} A ${FREE_THROW_RADIUS} ${FREE_THROW_RADIUS} 0 0 1 ${BASKET_X + FREE_THROW_RADIUS} ${PAINT_HEIGHT}`} fill="none" stroke={lineColor} strokeWidth={lineWidth} />
+      <line x1={BASKET_X - BACKBOARD_WIDTH / 2} y1={BASKET_Y - 10} x2={BASKET_X + BACKBOARD_WIDTH / 2} y2={BASKET_Y - 10} stroke={lineColor} strokeWidth={lineWidth + 1} />
+      <circle cx={BASKET_X} cy={BASKET_Y} r={BASKET_RADIUS} fill="none" stroke={lineColor} strokeWidth={lineWidth + 0.5} />
+      <line x1={threeArcStartX} y1={0} x2={threeArcStartX} y2={threeArcY} stroke={lineColor} strokeWidth={lineWidth} />
+      <line x1={threeArcEndX} y1={0} x2={threeArcEndX} y2={threeArcY} stroke={lineColor} strokeWidth={lineWidth} />
+      <path d={threeArc} fill="none" stroke={lineColor} strokeWidth={lineWidth} />
+      <path d={restrictedArc} fill="none" stroke={lineColor} strokeWidth={lineWidth} />
+
+      {shots.map((shot, i) => {
+        if (shot.loc_x === null || shot.loc_y === null) return null;
+        const cx = shot.loc_x + COURT.OFFSET_X;
+        const cy = shot.loc_y + COURT.OFFSET_Y;
+        if (cx < 0 || cx > WIDTH || cy < 0 || cy > HEIGHT) return null;
+        return (
+          <circle
+            key={i}
+            cx={cx}
+            cy={cy}
+            r={3}
+            fill={shot.is_made ? SHOT_COLORS.made : SHOT_COLORS.missed}
+            opacity={0.7}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
 export default function Home() {
-  const router = useRouter();
   const { season } = useSeason();
   const [health, setHealth] = useState<HealthData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,51 +119,44 @@ export default function Home() {
       fetchShotQualityLeaderboard({
         season,
         per_page: 5,
-        min_shots: 100,
-        sort_by: 'pax_per_100_shots',
+        min_shots: 300,
+        sort_by: 'total_points_above_expected',
       }),
   });
 
-  const handleSearch = (value: string) => {
-    if (value.trim()) {
-      router.push(`/players?search=${encodeURIComponent(value.trim())}`);
-    }
-  };
+  const featuredPlayer = topShooters?.data?.[0] ?? null;
+  const featuredPlayerId = featuredPlayer?.player_id;
+
+  const { data: featuredShots } = useQuery({
+    queryKey: ['featuredShots', featuredPlayerId, season],
+    queryFn: () =>
+      fetchPlayerShots(featuredPlayerId!, {
+        season,
+        per_page: 100,
+      }),
+    enabled: !!featuredPlayerId,
+  });
 
   const totalPlayers = health?.row_counts?.['stg_players'] ?? 0;
-  const totalGames = health?.row_counts?.['stg_player_game_logs'] ?? 0;
   const totalShots = health?.row_counts?.['stg_shot_charts'] ?? 0;
+  const totalGames = health?.row_counts?.['fct_player_game_advanced'] ?? 0;
+  const totalPbp = health?.row_counts?.['stg_play_by_play'] ?? 0;
 
   return (
-    <div className="space-y-8">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-8 md:p-12">
-        {/* Background decoration */}
+    <div className="space-y-6">
+      {/* Compact Hero */}
+      <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] px-8 py-6">
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[var(--accent)] opacity-[0.04] blur-3xl" />
         <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-purple-500 opacity-[0.04] blur-3xl" />
-
-        <div className="relative space-y-5">
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
-              <span className="gradient-text">Hoopstack</span>
-            </h1>
-            <p className="mt-3 max-w-lg text-base text-[var(--text-secondary)]">
-              Advanced NBA analytics — shot charts, rolling averages, lineup data, and player comparisons across 3 seasons of detailed data.
-            </p>
-          </div>
-          <div className="max-w-md">
-            <SearchInput
-              onChange={handleSearch}
-              placeholder="Search for a player..."
-            />
-          </div>
-        </div>
+        <p className="relative text-base text-[var(--text-secondary)]">
+          Shot charts, rolling averages, lineup data, and player comparisons across 3 seasons of NBA analytics.
+        </p>
       </div>
 
-      {/* Stats Row */}
+      {/* Stat Cards Row */}
       {health && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="card-glow flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <Link href="/players" className="card-glow flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-colors hover:border-[var(--accent)]/30">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--accent-muted)]">
               <Users className="h-5 w-5 text-[var(--accent)]" />
             </div>
@@ -124,8 +166,8 @@ export default function Home() {
                 <AnimatedCounter target={totalPlayers} />
               </div>
             </div>
-          </div>
-          <div className="card-glow flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5">
+          </Link>
+          <Link href="/leaderboards" className="card-glow flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-colors hover:border-[var(--accent)]/30">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--success-muted)]">
               <Crosshair className="h-5 w-5 text-[var(--success)]" />
             </div>
@@ -135,8 +177,8 @@ export default function Home() {
                 <AnimatedCounter target={totalShots} />
               </div>
             </div>
-          </div>
-          <div className="card-glow flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5">
+          </Link>
+          <Link href="/players" className="card-glow flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-colors hover:border-[var(--accent)]/30">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--warning-muted)]">
               <TrendingUp className="h-5 w-5 text-[var(--warning)]" />
             </div>
@@ -146,73 +188,163 @@ export default function Home() {
                 <AnimatedCounter target={totalGames} />
               </div>
             </div>
-          </div>
+          </Link>
+          <Link href="/players" className="card-glow flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-colors hover:border-[var(--accent)]/30">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--danger-muted)]">
+              <Zap className="h-5 w-5 text-[var(--danger)]" />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-[var(--text-secondary)]">Play-by-Play</div>
+              <div className="font-mono text-2xl font-bold tabular-nums text-[var(--text-primary)]">
+                <AnimatedCounter target={totalPbp} />
+              </div>
+            </div>
+          </Link>
         </div>
       )}
 
-      {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Link
-          href="/players"
-          className="card-glow group flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-muted)]">
-              <Users className="h-5 w-5 text-[var(--accent)]" />
+      {/* Featured Player + Mini Shot Chart */}
+      {featuredPlayer && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Left: Featured Player + Runners Up */}
+          <div className="flex flex-col gap-4">
+            <div className="flex-1 flex flex-col justify-center rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-8">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                  Featured Player — {season}
+                </h2>
+                <Link
+                  href={`/players/${featuredPlayer.player_id}`}
+                  className="flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+                >
+                  View profile
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+              <div className="flex items-center gap-7">
+                <div className="relative h-40 w-40 flex-shrink-0 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+                  <Image
+                    src={playerHeadshotUrl(featuredPlayer.player_id)}
+                    alt={featuredPlayer.player_name}
+                    fill
+                    className="object-cover object-top"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-4xl font-bold text-[var(--text-primary)]">
+                    {featuredPlayer.player_name}
+                  </h3>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Image
+                      src={teamLogoUrl(featuredPlayer.team_id)}
+                      alt={featuredPlayer.team_name}
+                      width={22}
+                      height={22}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <span className="text-sm text-[var(--text-secondary)]">{featuredPlayer.team_name}</span>
+                  </div>
+                  <div className="mt-6 grid grid-cols-4 gap-3 font-mono tabular-nums">
+                    <div className="rounded-lg bg-[var(--bg-elevated)] px-3 py-3.5">
+                      <div className="text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">FG%</div>
+                      <div className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{formatPct(featuredPlayer.fg_pct)}</div>
+                    </div>
+                    <div className="rounded-lg bg-[var(--bg-elevated)] px-3 py-3.5">
+                      <div className="text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">PAX/100</div>
+                      <div className="mt-1 text-2xl font-semibold text-[var(--accent)]">{formatStat(featuredPlayer.pax_per_100_shots)}</div>
+                    </div>
+                    <div className="rounded-lg bg-[var(--bg-elevated)] px-3 py-3.5">
+                      <div className="text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">Shots</div>
+                      <div className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{featuredPlayer.total_shots.toLocaleString()}</div>
+                    </div>
+                    <div className="rounded-lg bg-[var(--bg-elevated)] px-3 py-3.5">
+                      <div className="text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">Quality</div>
+                      <div className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{formatStat(featuredPlayer.shot_quality_score)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <ArrowRight className="h-4 w-4 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--accent)]" />
+
+            {/* Runners Up */}
+            {topShooters && topShooters.data.length > 1 && (
+              <div className="flex-1 flex flex-col justify-center rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5">
+                <div className="space-y-2">
+                  {topShooters.data.slice(1).map((player, i) => (
+                    <Link
+                      key={player.player_id}
+                      href={`/players/${player.player_id}`}
+                      className="flex items-center gap-4 rounded-lg px-3 py-3.5 transition-colors hover:bg-[var(--bg-elevated)]"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-sm font-bold text-[var(--text-secondary)]">
+                        {i + 2}
+                      </span>
+                      <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+                        <Image
+                          src={playerHeadshotUrl(player.player_id)}
+                          alt={player.player_name}
+                          fill
+                          className="object-cover object-top"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-lg font-medium text-[var(--text-primary)] truncate block">
+                          {player.player_name}
+                        </span>
+                        <span className="text-sm text-[var(--text-tertiary)]">
+                          {player.team_name}
+                        </span>
+                      </div>
+                      <span className="font-mono text-base tabular-nums font-semibold text-[var(--accent)]">
+                        {formatStat(player.pax_per_100_shots)} PAX/100
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Players</h3>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">Search & browse player profiles</p>
-          </div>
-        </Link>
-        <Link
-          href="/teams"
-          className="card-glow group flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--success-muted)]">
-              <Shield className="h-5 w-5 text-[var(--success)]" />
+
+          {/* Right: Mini Shot Chart */}
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                Shot Chart Preview
+              </h2>
             </div>
-            <ArrowRight className="h-4 w-4 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--accent)]" />
+            {featuredShots?.data && featuredShots.data.length > 0 ? (
+              <>
+                <MiniCourt shots={featuredShots.data} />
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: SHOT_COLORS.made }} />
+                      Made
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: SHOT_COLORS.missed }} />
+                      Missed
+                    </span>
+                  </div>
+                  <Link
+                    href={`/players/${featuredPlayer.player_id}`}
+                    className="flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+                  >
+                    View full shot chart
+                    <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <div className="flex h-48 items-center justify-center text-[var(--text-tertiary)]">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            )}
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Teams</h3>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">Game logs & lineup analysis</p>
-          </div>
-        </Link>
-        <Link
-          href="/compare"
-          className="card-glow group flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--warning-muted)]">
-              <ArrowRightLeft className="h-5 w-5 text-[var(--warning)]" />
-            </div>
-            <ArrowRight className="h-4 w-4 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--accent)]" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Compare</h3>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">Side-by-side player comparison</p>
-          </div>
-        </Link>
-        <Link
-          href="/leaderboards"
-          className="card-glow group flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-5 transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--danger-muted)]">
-              <Trophy className="h-5 w-5 text-[var(--danger)]" />
-            </div>
-            <ArrowRight className="h-4 w-4 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--accent)]" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Leaderboards</h3>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">Shot quality & lineup rankings</p>
-          </div>
-        </Link>
-      </div>
+        </div>
+      )}
 
       {/* Top Shot Quality Leaders */}
       {topShooters && topShooters.data.length > 0 && (
@@ -246,6 +378,14 @@ export default function Home() {
                 }`}>
                   {i + 1}
                 </span>
+                <Image
+                  src={teamLogoUrl(player.team_id)}
+                  alt={player.team_name}
+                  width={20}
+                  height={20}
+                  className="flex-shrink-0"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium text-[var(--text-primary)]">
                     {player.player_name}
@@ -254,13 +394,16 @@ export default function Home() {
                     {player.team_name}
                   </span>
                 </div>
-                <div className="flex gap-5 text-xs font-mono tabular-nums">
+                <div className="flex items-center gap-5 text-xs font-mono tabular-nums">
                   <span className="text-[var(--text-tertiary)]">
                     {player.total_shots} shots
                   </span>
-                  <span className="text-[var(--text-secondary)]">
-                    {formatPct(player.fg_pct)} FG
-                  </span>
+                  <div className="relative w-16">
+                    <div className="absolute inset-y-0 left-0 rounded-sm bg-[var(--accent)]/10" style={{ width: `${(player.fg_pct ?? 0) * 100}%` }} />
+                    <span className="relative text-[var(--text-secondary)]">
+                      {formatPct(player.fg_pct)} FG
+                    </span>
+                  </div>
                   <span className="font-semibold text-[var(--accent)]">
                     {formatStat(player.pax_per_100_shots)} PAX/100
                   </span>
