@@ -6,15 +6,16 @@ import { cn } from '@/lib/utils';
 interface PaginationProps {
   page: number;
   totalPages: number;
+  total?: number;
   onPageChange: (page: number) => void;
   className?: string;
 }
 
-export function Pagination({ page, totalPages, onPageChange, className }: PaginationProps) {
+export function Pagination({ page, totalPages, total, onPageChange, className }: PaginationProps) {
   if (totalPages <= 1) return null;
 
   return (
-    <div className={cn('flex items-center justify-center gap-2', className)}>
+    <div className={cn('flex items-center justify-center gap-3', className)}>
       <button
         onClick={() => onPageChange(page - 1)}
         disabled={page <= 1}
@@ -32,6 +33,11 @@ export function Pagination({ page, totalPages, onPageChange, className }: Pagina
       >
         <ChevronRight className="h-4 w-4" />
       </button>
+      {total !== undefined && (
+        <span className="text-xs text-[var(--text-tertiary)]">
+          {total.toLocaleString()} total
+        </span>
+      )}
     </div>
   );
 }

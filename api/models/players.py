@@ -9,6 +9,9 @@ class PlayerSummary(BaseModel):
     team_id: int | None = None
     team_name: str | None = None
     team_abbreviation: str | None = None
+    ppg: float | None = None
+    rpg: float | None = None
+    apg: float | None = None
 
 
 class PlayerDetail(BaseModel):

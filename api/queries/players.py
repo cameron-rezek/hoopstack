@@ -1,10 +1,30 @@
+SORT_MAP = {
+    "name": "p.player_name",
+    "ppg": "s.ppg DESC NULLS LAST",
+    "rpg": "s.rpg DESC NULLS LAST",
+    "apg": "s.apg DESC NULLS LAST",
+    "team": "p.team_abbreviation NULLS LAST, p.player_name",
+    "position": "p.position NULLS LAST, p.player_name",
+}
+
 LIST_PLAYERS = """
-SELECT player_id, player_name, position, team_id, team_name, team_abbreviation,
+SELECT p.player_id, p.player_name, p.position, p.team_id, p.team_name, p.team_abbreviation,
+       s.ppg, s.rpg, s.apg,
        COUNT(*) OVER() AS _total
-  FROM staging.stg_players
+  FROM staging.stg_players p
+  LEFT JOIN (
+    SELECT player_id,
+           ROUND(AVG(points)::numeric, 1) AS ppg,
+           ROUND(AVG(total_rebounds)::numeric, 1) AS rpg,
+           ROUND(AVG(assists)::numeric, 1) AS apg
+      FROM analytics.fct_player_game_advanced
+     WHERE season_type = 'Regular Season'
+       AND season_id LIKE '%2024'
+     GROUP BY player_id
+  ) s ON p.player_id = s.player_id
  WHERE 1=1
    {filters}
- ORDER BY player_name
+ ORDER BY {sort}
  LIMIT $1 OFFSET $2
 """
 

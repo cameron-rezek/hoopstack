@@ -9,6 +9,7 @@ export function usePlayers(params?: PaginationParams & {
   search?: string;
   team_id?: number;
   position?: string;
+  sort_by?: string;
 }) {
   return useQuery({
     queryKey: ['players', params],

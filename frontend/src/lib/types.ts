@@ -22,6 +22,9 @@ export interface PlayerSummary {
   team_id: number | null;
   team_name: string | null;
   team_abbreviation: string | null;
+  ppg: number | null;
+  rpg: number | null;
+  apg: number | null;
 }
 
 export interface PlayerDetail {

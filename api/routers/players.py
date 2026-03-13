@@ -27,26 +27,28 @@ async def list_players(
     search: str | None = Query(None, description="Search by player name"),
     team_id: int | None = Query(None),
     position: str | None = Query(None),
+    sort_by: str | None = Query(None, description="Sort by: name, ppg, rpg, apg, team, position"),
 ):
     filters: list[str] = []
     params: list = [pag.per_page, pag.offset]
     next_idx = 3
 
     if search:
-        filters.append(f"player_name ILIKE ${next_idx}")
+        filters.append(f"p.player_name ILIKE ${next_idx}")
         params.append(f"%{search}%")
         next_idx += 1
     if team_id is not None:
-        filters.append(f"team_id = ${next_idx}")
+        filters.append(f"p.team_id = ${next_idx}")
         params.append(team_id)
         next_idx += 1
     if position:
-        filters.append(f"position ILIKE ${next_idx}")
+        filters.append(f"p.position ILIKE ${next_idx}")
         params.append(f"%{position}%")
         next_idx += 1
 
+    sort_col = sql.SORT_MAP.get(sort_by, "p.player_name")
     filter_sql = ("\n   AND " + "\n   AND ".join(filters)) if filters else ""
-    query = sql.LIST_PLAYERS.format(filters=filter_sql)
+    query = sql.LIST_PLAYERS.format(filters=filter_sql, sort=sort_col)
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(query, *params)
