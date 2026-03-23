@@ -217,7 +217,7 @@ export default function PlayerProfilePage({
 
       {activeTab === 'rolling' && (
         <div className="space-y-6">
-          <div className="flex items-center gap-3">
+          <div className="relative z-10 flex items-center gap-3">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">Stat:</span>
             <select
               value={rollingStat}
@@ -249,7 +249,7 @@ export default function PlayerProfilePage({
                 <StatTrend label="AST" current={latest.assists_avg_5g} seasonAvg={latest.assists_avg_season} />
                 <StatTrend label="REB" current={latest.rebounds_avg_5g} seasonAvg={latest.rebounds_avg_season} />
                 <StatTrend label="TS%" current={latest.ts_pct_avg_5g} seasonAvg={latest.ts_pct_avg_season} isPct />
-                <StatTrend label="USG" current={latest.usage_avg_5g} seasonAvg={latest.usage_avg_season} isPct />
+                <StatTrend label="USG" current={latest.usage_avg_5g} seasonAvg={latest.usage_avg_season} isPctRaw />
                 <StatTrend label="+/-" current={latest.plus_minus_avg_5g} seasonAvg={latest.plus_minus_avg_season} />
               </div>
             );

@@ -288,7 +288,12 @@ export interface PlayerRollingStats {
   assists: number;
   total_rebounds: number;
   true_shooting_pct: number | null;
+  effective_fg_pct: number | null;
   usage_rate: number | null;
+  assist_pct: number | null;
+  turnover_pct: number | null;
+  offensive_rebound_pct: number | null;
+  defensive_rebound_pct: number | null;
   plus_minus: number | null;
   game_score: number | null;
   // 5-game rolling
@@ -296,7 +301,12 @@ export interface PlayerRollingStats {
   assists_avg_5g: number | null;
   rebounds_avg_5g: number | null;
   ts_pct_avg_5g: number | null;
+  efg_pct_avg_5g: number | null;
   usage_avg_5g: number | null;
+  assist_pct_avg_5g: number | null;
+  turnover_pct_avg_5g: number | null;
+  oreb_pct_avg_5g: number | null;
+  dreb_pct_avg_5g: number | null;
   plus_minus_avg_5g: number | null;
   game_score_avg_5g: number | null;
   // 10-game rolling
@@ -304,7 +314,12 @@ export interface PlayerRollingStats {
   assists_avg_10g: number | null;
   rebounds_avg_10g: number | null;
   ts_pct_avg_10g: number | null;
+  efg_pct_avg_10g: number | null;
   usage_avg_10g: number | null;
+  assist_pct_avg_10g: number | null;
+  turnover_pct_avg_10g: number | null;
+  oreb_pct_avg_10g: number | null;
+  dreb_pct_avg_10g: number | null;
   plus_minus_avg_10g: number | null;
   game_score_avg_10g: number | null;
   // 20-game rolling
@@ -312,7 +327,12 @@ export interface PlayerRollingStats {
   assists_avg_20g: number | null;
   rebounds_avg_20g: number | null;
   ts_pct_avg_20g: number | null;
+  efg_pct_avg_20g: number | null;
   usage_avg_20g: number | null;
+  assist_pct_avg_20g: number | null;
+  turnover_pct_avg_20g: number | null;
+  oreb_pct_avg_20g: number | null;
+  dreb_pct_avg_20g: number | null;
   plus_minus_avg_20g: number | null;
   game_score_avg_20g: number | null;
   // Season averages
@@ -320,7 +340,12 @@ export interface PlayerRollingStats {
   assists_avg_season: number | null;
   rebounds_avg_season: number | null;
   ts_pct_avg_season: number | null;
+  efg_pct_avg_season: number | null;
   usage_avg_season: number | null;
+  assist_pct_avg_season: number | null;
+  turnover_pct_avg_season: number | null;
+  oreb_pct_avg_season: number | null;
+  dreb_pct_avg_season: number | null;
   plus_minus_avg_season: number | null;
   game_score_avg_season: number | null;
 }

@@ -19,7 +19,12 @@ export type RollingStat =
   | 'assists'
   | 'total_rebounds'
   | 'true_shooting_pct'
+  | 'effective_fg_pct'
   | 'usage_rate'
+  | 'assist_pct'
+  | 'turnover_pct'
+  | 'offensive_rebound_pct'
+  | 'defensive_rebound_pct'
   | 'game_score'
   | 'plus_minus';
 
@@ -37,7 +42,12 @@ const statConfig: Record<RollingStat, {
   assists: { label: 'Assists', game: 'assists', avg5: 'assists_avg_5g', avg10: 'assists_avg_10g', avg20: 'assists_avg_20g', season: 'assists_avg_season' },
   total_rebounds: { label: 'Rebounds', game: 'total_rebounds', avg5: 'rebounds_avg_5g', avg10: 'rebounds_avg_10g', avg20: 'rebounds_avg_20g', season: 'rebounds_avg_season' },
   true_shooting_pct: { label: 'TS%', game: 'true_shooting_pct', avg5: 'ts_pct_avg_5g', avg10: 'ts_pct_avg_10g', avg20: 'ts_pct_avg_20g', season: 'ts_pct_avg_season', isPct: true },
+  effective_fg_pct: { label: 'eFG%', game: 'effective_fg_pct', avg5: 'efg_pct_avg_5g', avg10: 'efg_pct_avg_10g', avg20: 'efg_pct_avg_20g', season: 'efg_pct_avg_season', isPct: true },
   usage_rate: { label: 'Usage Rate', game: 'usage_rate', avg5: 'usage_avg_5g', avg10: 'usage_avg_10g', avg20: 'usage_avg_20g', season: 'usage_avg_season', isPctRaw: true },
+  assist_pct: { label: 'AST%', game: 'assist_pct', avg5: 'assist_pct_avg_5g', avg10: 'assist_pct_avg_10g', avg20: 'assist_pct_avg_20g', season: 'assist_pct_avg_season', isPctRaw: true },
+  turnover_pct: { label: 'TOV%', game: 'turnover_pct', avg5: 'turnover_pct_avg_5g', avg10: 'turnover_pct_avg_10g', avg20: 'turnover_pct_avg_20g', season: 'turnover_pct_avg_season', isPctRaw: true },
+  offensive_rebound_pct: { label: 'ORB%', game: 'offensive_rebound_pct', avg5: 'oreb_pct_avg_5g', avg10: 'oreb_pct_avg_10g', avg20: 'oreb_pct_avg_20g', season: 'oreb_pct_avg_season', isPctRaw: true },
+  defensive_rebound_pct: { label: 'DRB%', game: 'defensive_rebound_pct', avg5: 'dreb_pct_avg_5g', avg10: 'dreb_pct_avg_10g', avg20: 'dreb_pct_avg_20g', season: 'dreb_pct_avg_season', isPctRaw: true },
   game_score: { label: 'Game Score', game: 'game_score', avg5: 'game_score_avg_5g', avg10: 'game_score_avg_10g', avg20: 'game_score_avg_20g', season: 'game_score_avg_season' },
   plus_minus: { label: '+/-', game: 'plus_minus', avg5: 'plus_minus_avg_5g', avg10: 'plus_minus_avg_10g', avg20: 'plus_minus_avg_20g', season: 'plus_minus_avg_season' },
 };
@@ -74,10 +84,12 @@ export function RollingLineChart({ data, stat }: RollingLineChartProps) {
           tick={{ fill: CHART_THEME.textColor, fontSize: 11 }}
           axisLine={{ stroke: CHART_THEME.gridColor }}
           tickFormatter={(v) => config.isPct ? `${(v * 100).toFixed(0)}%` : config.isPctRaw ? `${v.toFixed(0)}%` : String(v)}
+          domain={['auto', 'auto']}
+          padding={{ top: 10, bottom: 10 }}
         />
         <Tooltip
           {...tooltipStyle}
-          formatter={(value) => [formatVal(value as number), '']}
+          formatter={(value, name) => [formatVal(value as number), name]}
           labelFormatter={(label) => `Game ${label}`}
         />
 

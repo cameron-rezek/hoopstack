@@ -8,13 +8,15 @@ interface StatTrendProps {
   current: number | null;
   seasonAvg: number | null;
   isPct?: boolean;
+  isPctRaw?: boolean;
   className?: string;
 }
 
-export function StatTrend({ label, current, seasonAvg, isPct, className }: StatTrendProps) {
+export function StatTrend({ label, current, seasonAvg, isPct, isPctRaw, className }: StatTrendProps) {
   const format = (v: number | null) => {
     if (v === null || v === undefined) return '\u2014';
     if (isPct) return `${(v * 100).toFixed(1)}%`;
+    if (isPctRaw) return `${v.toFixed(1)}%`;
     return v.toFixed(1);
   };
 
