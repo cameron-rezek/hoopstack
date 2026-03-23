@@ -47,6 +47,8 @@ export function fetchPlayers(params?: PaginationParams & {
   team_id?: number;
   position?: string;
   sort_by?: string;
+  season?: string;
+  min_gp?: number;
 }) {
   return fetchJson<PaginatedResponse<PlayerSummary>>('/players', params);
 }

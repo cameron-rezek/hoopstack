@@ -73,10 +73,13 @@ export function PlayerCard({ player, onCompareToggle, isComparing }: PlayerCardP
         </div>
         <div className="text-xs text-[var(--text-secondary)]">
           {[player.team_abbreviation, player.position].filter(Boolean).join(' · ')}
+          {player.gp != null && player.gp > 0 && (
+            <span className="ml-1 text-[var(--text-tertiary)]">· {player.gp} GP</span>
+          )}
         </div>
         {/* Stats row */}
-        {(player.ppg !== null || player.rpg !== null || player.apg !== null) && (
-          <div className="mt-1.5 flex gap-3 text-xs">
+        {player.ppg !== null || player.rpg !== null || player.apg !== null ? (
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
             {player.ppg !== null && (
               <span className="text-[var(--text-secondary)]">
                 <span className="font-medium text-[var(--text-primary)]">{player.ppg}</span> pts
@@ -92,7 +95,19 @@ export function PlayerCard({ player, onCompareToggle, isComparing }: PlayerCardP
                 <span className="font-medium text-[var(--text-primary)]">{player.apg}</span> ast
               </span>
             )}
+            {player.fg_pct !== null && (
+              <span className="text-[var(--text-secondary)]">
+                <span className="font-medium text-[var(--text-primary)]">{player.fg_pct}</span> fg%
+              </span>
+            )}
+            {player.mpg !== null && (
+              <span className="text-[var(--text-secondary)]">
+                <span className="font-medium text-[var(--text-primary)]">{player.mpg}</span> min
+              </span>
+            )}
           </div>
+        ) : (
+          <div className="mt-1.5 text-xs text-[var(--text-tertiary)]">No stats available</div>
         )}
       </div>
 
@@ -103,10 +118,10 @@ export function PlayerCard({ player, onCompareToggle, isComparing }: PlayerCardP
           className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-medium transition-all ${
             isComparing
               ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-              : 'border-[var(--border)] text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 hover:border-[var(--accent)] hover:text-[var(--accent)]'
+              : 'border-[var(--border)] text-[var(--text-tertiary)] opacity-40 group-hover:opacity-100 hover:border-[var(--accent)] hover:text-[var(--accent)]'
           }`}
         >
-          {isComparing ? 'Added' : 'Compare'}
+          {isComparing ? '✓ Added' : 'VS'}
         </button>
       )}
     </Link>

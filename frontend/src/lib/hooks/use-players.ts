@@ -10,10 +10,13 @@ export function usePlayers(params?: PaginationParams & {
   team_id?: number;
   position?: string;
   sort_by?: string;
+  min_gp?: number;
 }) {
+  const { season } = useSeason();
+  const mergedParams = { season, ...params };
   return useQuery({
-    queryKey: ['players', params],
-    queryFn: () => fetchPlayers(params),
+    queryKey: ['players', mergedParams],
+    queryFn: () => fetchPlayers(mergedParams),
   });
 }
 

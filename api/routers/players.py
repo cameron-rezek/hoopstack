@@ -27,11 +27,19 @@ async def list_players(
     search: str | None = Query(None, description="Search by player name"),
     team_id: int | None = Query(None),
     position: str | None = Query(None),
-    sort_by: str | None = Query(None, description="Sort by: name, ppg, rpg, apg, team, position"),
+    sort_by: str | None = Query(None, description="Sort by: name, ppg, rpg, apg, team, position, gp, fg_pct, mpg, spg, bpg"),
+    season: str | None = Query(None, description="e.g. 2024-25"),
+    min_gp: int | None = Query(None, description="Minimum games played"),
 ):
     filters: list[str] = []
     params: list = [pag.per_page, pag.offset]
     next_idx = 3
+
+    # Season parameter for the subquery
+    season_year = _season_to_year(season) if season else "2024"
+    params.append(season_year)
+    season_param = f"${next_idx}"
+    next_idx += 1
 
     if search:
         filters.append(f"p.player_name ILIKE ${next_idx}")
@@ -46,9 +54,19 @@ async def list_players(
         params.append(f"%{position}%")
         next_idx += 1
 
+    # Min games played filter (HAVING clause in subquery)
+    having_sql = ""
+    if min_gp is not None and min_gp > 0:
+        having_sql = f"HAVING COUNT(*) >= ${next_idx}"
+        params.append(min_gp)
+        next_idx += 1
+
     sort_col = sql.SORT_MAP.get(sort_by, "p.player_name")
     filter_sql = ("\n   AND " + "\n   AND ".join(filters)) if filters else ""
-    query = sql.LIST_PLAYERS.format(filters=filter_sql, sort=sort_col)
+    query = sql.LIST_PLAYERS.format(
+        filters=filter_sql, sort=sort_col,
+        season_param=season_param, having=having_sql,
+    )
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(query, *params)

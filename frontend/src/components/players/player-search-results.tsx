@@ -108,6 +108,12 @@ function PlayerTableRow({
       </td>
       <td className="px-3 py-2 text-xs text-[var(--text-secondary)]">{player.team_abbreviation ?? '—'}</td>
       <td className="px-3 py-2 text-xs text-[var(--text-secondary)]">{player.position ?? '—'}</td>
+      <td className="px-3 py-2 text-right text-xs text-[var(--text-secondary)]">
+        {player.gp ?? '—'}
+      </td>
+      <td className="px-3 py-2 text-right text-xs text-[var(--text-secondary)]">
+        {player.mpg?.toFixed(1) ?? '—'}
+      </td>
       <td className="px-3 py-2 text-right text-sm font-medium text-[var(--text-primary)]">
         {player.ppg?.toFixed(1) ?? '—'}
       </td>
@@ -116,6 +122,18 @@ function PlayerTableRow({
       </td>
       <td className="px-3 py-2 text-right text-sm font-medium text-[var(--text-primary)]">
         {player.apg?.toFixed(1) ?? '—'}
+      </td>
+      <td className="px-3 py-2 text-right text-xs text-[var(--text-secondary)]">
+        {player.fg_pct?.toFixed(1) ?? '—'}
+      </td>
+      <td className="px-3 py-2 text-right text-xs text-[var(--text-secondary)]">
+        {player.spg?.toFixed(1) ?? '—'}
+      </td>
+      <td className="px-3 py-2 text-right text-xs text-[var(--text-secondary)]">
+        {player.bpg?.toFixed(1) ?? '—'}
+      </td>
+      <td className="px-3 py-2 text-right text-xs text-[var(--text-secondary)]">
+        {player.topg?.toFixed(1) ?? '—'}
       </td>
     </tr>
   );
@@ -170,9 +188,15 @@ export function PlayerSearchResults({
                 <SortHeader label="Player" field="name" currentSort={sortBy} onSort={onSortChange} />
                 <SortHeader label="Team" field="team" currentSort={sortBy} onSort={onSortChange} />
                 <SortHeader label="Pos" field="position" currentSort={sortBy} onSort={onSortChange} />
+                <SortHeader label="GP" field="gp" currentSort={sortBy} onSort={onSortChange} align="right" />
+                <SortHeader label="MIN" field="mpg" currentSort={sortBy} onSort={onSortChange} align="right" />
                 <SortHeader label="PPG" field="ppg" currentSort={sortBy} onSort={onSortChange} align="right" />
                 <SortHeader label="RPG" field="rpg" currentSort={sortBy} onSort={onSortChange} align="right" />
                 <SortHeader label="APG" field="apg" currentSort={sortBy} onSort={onSortChange} align="right" />
+                <SortHeader label="FG%" field="fg_pct" currentSort={sortBy} onSort={onSortChange} align="right" />
+                <SortHeader label="STL" field="spg" currentSort={sortBy} onSort={onSortChange} align="right" />
+                <SortHeader label="BLK" field="bpg" currentSort={sortBy} onSort={onSortChange} align="right" />
+                <th className="px-3 py-2 text-xs font-medium text-[var(--text-tertiary)] text-right">TOV</th>
               </tr>
             </thead>
             <tbody>

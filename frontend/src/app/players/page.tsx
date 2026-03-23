@@ -3,7 +3,6 @@
 import { Suspense, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { LayoutGrid, List, ArrowUpDown, X } from 'lucide-react';
-import { SearchInput } from '@/components/ui/search-input';
 import { PlayerSearchResults } from '@/components/players/player-search-results';
 import { usePlayers } from '@/lib/hooks/use-players';
 import { useTeams } from '@/lib/hooks/use-teams';
@@ -16,8 +15,21 @@ const SORT_OPTIONS = [
   { value: 'ppg', label: 'PPG' },
   { value: 'rpg', label: 'RPG' },
   { value: 'apg', label: 'APG' },
+  { value: 'gp', label: 'GP' },
+  { value: 'fg_pct', label: 'FG%' },
+  { value: 'mpg', label: 'MIN' },
+  { value: 'spg', label: 'STL' },
+  { value: 'bpg', label: 'BLK' },
   { value: 'team', label: 'Team' },
   { value: 'position', label: 'Position' },
+] as const;
+
+const MIN_GP_OPTIONS = [
+  { value: 0, label: 'All Players' },
+  { value: 10, label: '10+ GP' },
+  { value: 20, label: '20+ GP' },
+  { value: 40, label: '40+ GP' },
+  { value: 60, label: '60+ GP' },
 ] as const;
 
 const PER_PAGE = 24;
@@ -27,11 +39,12 @@ function PlayersContent() {
   const router = useRouter();
   const initialSearch = searchParams.get('search') ?? '';
 
-  const [search, setSearch] = useState(initialSearch);
+  const search = initialSearch;
   const [page, setPage] = useState(1);
   const [position, setPosition] = useState<string | undefined>();
   const [teamId, setTeamId] = useState<number | undefined>();
   const [sortBy, setSortBy] = useState('name');
+  const [minGp, setMinGp] = useState(0);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [compareSet, setCompareSet] = useState<Set<number>>(new Set());
 
@@ -44,12 +57,8 @@ function PlayersContent() {
     position,
     team_id: teamId,
     sort_by: sortBy,
+    min_gp: minGp || undefined,
   });
-
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1);
-  };
 
   const handlePositionFilter = (pos: string) => {
     setPosition((prev) => (prev === pos ? undefined : pos));
@@ -86,7 +95,7 @@ function PlayersContent() {
     }
   };
 
-  const activeFilters = [position, teamId].filter(Boolean).length;
+  const activeFilters = [position, teamId, minGp].filter(Boolean).length;
 
   return (
     <div className="space-y-5">
@@ -102,16 +111,8 @@ function PlayersContent() {
         </div>
       </div>
 
-      {/* Search + filters bar */}
+      {/* Filters bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="w-full max-w-xs">
-          <SearchInput
-            value={search}
-            onChange={handleSearch}
-            placeholder="Search by name..."
-          />
-        </div>
-
         {/* Position chips */}
         <div className="flex gap-1.5">
           {POSITIONS.map((pos) => (
@@ -145,12 +146,26 @@ function PlayersContent() {
             ))}
         </select>
 
+        {/* Min GP dropdown */}
+        <select
+          value={minGp}
+          onChange={(e) => { setMinGp(Number(e.target.value)); setPage(1); }}
+          className="h-8 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2 text-xs text-[var(--text-secondary)] outline-none transition-all focus:border-[var(--accent)] hover:border-[var(--accent)]"
+        >
+          {MIN_GP_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+
         {/* Clear filters */}
         {activeFilters > 0 && (
           <button
             onClick={() => {
               setPosition(undefined);
               setTeamId(undefined);
+              setMinGp(0);
               setPage(1);
             }}
             className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"

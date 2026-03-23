@@ -5,22 +5,34 @@ SORT_MAP = {
     "apg": "s.apg DESC NULLS LAST",
     "team": "p.team_abbreviation NULLS LAST, p.player_name",
     "position": "p.position NULLS LAST, p.player_name",
+    "gp": "s.gp DESC NULLS LAST",
+    "fg_pct": "s.fg_pct DESC NULLS LAST",
+    "mpg": "s.mpg DESC NULLS LAST",
+    "spg": "s.spg DESC NULLS LAST",
+    "bpg": "s.bpg DESC NULLS LAST",
 }
 
 LIST_PLAYERS = """
 SELECT p.player_id, p.player_name, p.position, p.team_id, p.team_name, p.team_abbreviation,
-       s.ppg, s.rpg, s.apg,
+       s.ppg, s.rpg, s.apg, s.gp, s.fg_pct, s.mpg, s.spg, s.bpg, s.topg,
        COUNT(*) OVER() AS _total
   FROM staging.stg_players p
   LEFT JOIN (
     SELECT player_id,
+           COUNT(*) AS gp,
            ROUND(AVG(points)::numeric, 1) AS ppg,
            ROUND(AVG(total_rebounds)::numeric, 1) AS rpg,
-           ROUND(AVG(assists)::numeric, 1) AS apg
+           ROUND(AVG(assists)::numeric, 1) AS apg,
+           ROUND(AVG(field_goal_pct)::numeric, 1) AS fg_pct,
+           ROUND(AVG(minutes_played)::numeric, 1) AS mpg,
+           ROUND(AVG(steals)::numeric, 1) AS spg,
+           ROUND(AVG(blocks)::numeric, 1) AS bpg,
+           ROUND(AVG(turnovers)::numeric, 1) AS topg
       FROM analytics.fct_player_game_advanced
      WHERE season_type = 'Regular Season'
-       AND season_id LIKE '%2024'
+       AND season_id LIKE '%' || {season_param}
      GROUP BY player_id
+     {having}
   ) s ON p.player_id = s.player_id
  WHERE 1=1
    {filters}

@@ -12,6 +12,12 @@ class PlayerSummary(BaseModel):
     ppg: float | None = None
     rpg: float | None = None
     apg: float | None = None
+    gp: int | None = None
+    fg_pct: float | None = None
+    mpg: float | None = None
+    spg: float | None = None
+    bpg: float | None = None
+    topg: float | None = None
 
 
 class PlayerDetail(BaseModel):

@@ -25,6 +25,12 @@ export interface PlayerSummary {
   ppg: number | null;
   rpg: number | null;
   apg: number | null;
+  gp: number | null;
+  fg_pct: number | null;
+  mpg: number | null;
+  spg: number | null;
+  bpg: number | null;
+  topg: number | null;
 }
 
 export interface PlayerDetail {
