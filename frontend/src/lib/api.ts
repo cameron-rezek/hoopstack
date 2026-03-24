@@ -7,6 +7,7 @@ import type {
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY || '';
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -20,7 +21,11 @@ async function fetchJson<T>(path: string, params?: Record<string, any>): Promise
       }
     });
   }
-  const res = await fetch(url.toString());
+  const headers: Record<string, string> = {};
+  if (API_KEY) {
+    headers['X-API-Key'] = API_KEY;
+  }
+  const res = await fetch(url.toString(), { headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || `API error ${res.status}`);

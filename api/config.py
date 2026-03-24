@@ -2,14 +2,16 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    db_host: str = "192.168.1.22"
-    db_port: int = 5434
-    db_name: str = "nba_analytics"
-    db_user: str = "nba_admin"
-    db_password: str = ""
+    db_host: str
+    db_port: int = 5432
+    db_name: str
+    db_user: str
+    db_password: str
 
     db_pool_min: int = 2
     db_pool_max: int = 10
+
+    api_key: str = ""
 
     cors_origins: list[str] = ["http://localhost:3000"]
 

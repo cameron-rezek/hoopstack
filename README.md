@@ -1,6 +1,6 @@
 # Hoopstack
 
-An NBA analytics platform built on 3 seasons of play-by-play, shot chart, and game log data. Ingests raw data from the NBA Stats API, transforms it through a layered data model (raw → staging → analytics), and serves it through a REST API to power interactive visualizations.
+An NBA analytics platform built on play-by-play, shot chart, and game log data. Ingests raw data from the NBA Stats API, transforms it through a layered data model (raw → staging → analytics), and serves it through a REST API to power interactive visualizations.
 
 ## Architecture
 
@@ -14,18 +14,18 @@ NBA Stats API → Python Ingestion → PostgreSQL (Raw)
                                    Next.js + D3.js (Frontend)
 ```
 
-- **Database:** PostgreSQL 16 on Unraid server (192.168.1.22:5434)
-- **Ingestion:** Python scripts on Mac Mini (192.168.1.18), checkpointed and resumable
+- **Database:** PostgreSQL 16
+- **Ingestion:** Python scripts with checkpointing and resume support
 - **Transformations:** dbt Core (staging views + analytics tables)
-- **API:** FastAPI with asyncpg, 20 endpoints
+- **API:** FastAPI with asyncpg, API key auth, rate limiting
 - **Frontend:** Next.js 16 + D3.js + Recharts, dark theme
 
 ## Data
 
 - **Source:** NBA Stats API via `nba_api` Python library
-- **Scope:** 2023-24 through 2025-26 (3 seasons)
+- **Scope:** 2023-24 through 2025-26 seasons
 - **Volume:** ~560k shot attempts, ~1.16M play-by-play events, ~75k player game logs
-- **Update cadence:** Manual — re-run ingestion to pull new games (see below)
+- **Update cadence:** Daily cron job at 6am (+ manual backfill as needed)
 
 ## Tech Stack
 
@@ -34,15 +34,14 @@ NBA Stats API → Python Ingestion → PostgreSQL (Raw)
 | Database | PostgreSQL 16 |
 | Ingestion | Python, nba_api |
 | Transformations | dbt Core 1.11, dbt-postgres |
-| API | FastAPI, asyncpg, Pydantic |
+| API | FastAPI, asyncpg, Pydantic, slowapi |
 | Frontend | Next.js 16, React 19, D3.js 7, Recharts, Tailwind 4 |
-| Infrastructure | Unraid (DB), Mac Mini (ingestion) |
 
 ## Project Structure
 
 ```
 hoopstack/
-├── ingestion/       # Python ETL scripts (also on Mac Mini at ~/ingestion-hoopstack/)
+├── ingestion/       # Python ETL scripts
 ├── dbt/             # dbt project
 │   └── models/
 │       ├── staging/     # 6 deduped views (stg_players, stg_shot_charts, etc.)
@@ -66,14 +65,24 @@ hoopstack/
 
 ## Prerequisites
 
-- **PostgreSQL** running and accessible (Unraid server or local)
+- **PostgreSQL** running and accessible
 - **Python 3.11+** (for API and ingestion)
 - **Node.js 18+** (for frontend)
-- Network access to the database host
 
 ## Getting Started
 
-### 1. Start the API
+### 1. Configure Environment
+
+Copy the example env files and fill in your database credentials:
+
+```bash
+cp api/.env.example api/.env
+cp ingestion/.env.example ingestion/.env
+```
+
+Edit each `.env` with your database host, port, name, user, and password.
+
+### 2. Start the API
 
 ```bash
 cd hoopstack
@@ -85,17 +94,7 @@ Verify at:
 - Health check: http://localhost:8000/health
 - Interactive docs: http://localhost:8000/docs
 
-The API reads its database connection from `api/.env`:
-
-```
-DB_HOST=192.168.1.22
-DB_PORT=5434
-DB_NAME=nba_analytics
-DB_USER=nba_admin
-DB_PASSWORD=<your-password>
-```
-
-### 2. Start the Frontend
+### 3. Start the Frontend
 
 In a separate terminal:
 
@@ -104,13 +103,14 @@ cd hoopstack/frontend
 npm run dev
 ```
 
-Opens at http://localhost:3000. The frontend connects to the API via `frontend/.env.local`:
+Opens at http://localhost:3000. To connect to a non-default API URL or enable API key auth, create `frontend/.env.local`:
 
 ```
 NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_KEY=your-api-key-here
 ```
 
-### 3. Browse the App
+### 4. Browse the App
 
 | Page | What it shows |
 |------|---------------|
@@ -122,52 +122,60 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 | `/games/[id]` | Game detail — box score, play-by-play, shot chart |
 | `/leaderboards` | Stat leaderboards with season filtering |
 
+## API Authentication & Rate Limiting
+
+- **API key auth** is opt-in. Set `API_KEY` in `api/.env` to enforce it. Clients must send the key in the `X-API-Key` header. Leave `API_KEY` empty to disable auth (useful for local dev).
+- **Rate limiting** is enabled by default at 60 requests/minute per IP via slowapi.
+
 ## Updating Data
 
-Data does **not** update automatically. To pull new games:
+### Daily Updates (Automated)
 
-### Step 1: Run Ingestion
+A cron job runs `run_daily.py --refresh-season` at 6am daily. It:
+1. Refreshes game logs for the current season
+2. Ingests per-game data (shots, play-by-play, box scores) for yesterday's games
+3. Refreshes season-level aggregates (lineups, player stats)
 
-On the Mac Mini (where ingestion is set up):
+Output is logged to `ingestion/cron.log`. Note: the cron only fires when the machine is awake.
+
+### Manual Ingestion
 
 ```bash
-cd ~/ingestion-hoopstack
+cd ingestion
 source .venv/bin/activate
-python -m ingestion.run_backfill --start 2023 --end 2025
+
+# Ingest yesterday's games
+python run_daily.py
+
+# Ingest a specific date
+python run_daily.py --date 2026-03-22
+
+# Backfill an entire season (resumable via checkpoints)
+python run_backfill.py --start 2025 --end 2025
+
+# Backfill specific tiers only
+python run_backfill.py --start 2025 --end 2025 --tier season   # game logs + stats
+python run_backfill.py --start 2025 --end 2025 --tier game     # shots + play-by-play
+
+# Reset checkpoints and re-pull everything
+python run_backfill.py --reset
 ```
 
-This pulls any new games, shots, and play-by-play since the last run. The checkpoint system skips already-loaded data, so it only fetches what's new.
-
-**Important flags:**
-- `--start 2023 --end 2025` — limits to your 3-season scope (without this, it defaults to 2010-11 onward)
-- `--tier season` — only run season-level data (game logs, stats)
-- `--tier game` — only run per-game data (shots, play-by-play)
-- `--reset` — clear checkpoints and re-pull everything
-
 **Timing notes:**
-- The NBA API throttles after ~500-600 rapid calls. The ingestion has a 5-second delay between requests and a cooldown mechanism (3 consecutive failures → 5-minute pause).
-- Best to run overnight when API traffic is lower.
-- Catching up on a few weeks of games takes ~1-2 hours.
+- The NBA API throttles after ~500-600 rapid calls. The ingestion has configurable delays and a cooldown mechanism (3 consecutive failures → 5-minute pause).
+- A full season backfill (game tier) takes several hours due to API rate limits.
+- The checkpoint system means you can stop and resume safely.
 
-### Step 2: Refresh dbt Models
-
-After ingestion, rebuild the analytics tables:
+### After Ingestion: Refresh dbt Models
 
 ```bash
 cd hoopstack/dbt
 source ../dbt-venv/bin/activate
-dbt run
+dbt run        # Rebuild analytics tables
+dbt test       # Validate data quality
 ```
 
-To also validate data quality:
-
-```bash
-dbt test
-```
-
-### Step 3: Verify
-
-The API serves live queries against the database — no restart needed. Just refresh the frontend to see updated data.
+The API serves live queries — no restart needed. Just refresh the frontend.
 
 ## dbt Models
 
@@ -184,12 +192,12 @@ The API serves live queries against the database — no restart needed. Just ref
 
 ### Analytics (tables in `analytics` schema)
 
-| Model | Rows | Description |
-|-------|------|-------------|
-| `fct_player_game_advanced` | ~74.5k | Advanced per-game metrics (TS%, usage, etc.) |
-| `agg_shot_quality` | ~1.9k | Shot quality aggregates by player/season/zone |
-| `agg_lineup_stats` | ~8.3k | Lineup performance metrics |
-| `agg_player_rolling_stats` | ~74.5k | Rolling averages for trend analysis |
+| Model | Description |
+|-------|-------------|
+| `fct_player_game_advanced` | Advanced per-game metrics (TS%, usage, etc.) |
+| `agg_shot_quality` | Shot quality aggregates by player/season/zone |
+| `agg_lineup_stats` | Lineup performance metrics |
+| `agg_player_rolling_stats` | Rolling averages for trend analysis |
 
 ## API Endpoints
 
@@ -198,17 +206,17 @@ The API serves live queries against the database — no restart needed. Just ref
 | Endpoint | Description |
 |----------|-------------|
 | `GET /health` | Health check + DB connectivity |
-| `GET /api/players` | List players (search, pagination) |
-| `GET /api/players/{id}` | Player details |
-| `GET /api/players/{id}/game-log` | Player game log by season |
-| `GET /api/players/{id}/shots` | Player shot chart data |
-| `GET /api/teams` | List teams |
-| `GET /api/teams/{id}` | Team details + roster |
-| `GET /api/games/{id}` | Game box score |
-| `GET /api/games/{id}/pbp` | Play-by-play for a game |
-| `GET /api/shot-quality/{id}` | Shot quality breakdown |
-| `GET /api/lineups/{id}` | Lineup stats for a team |
-| `GET /api/rolling/{id}` | Rolling stat averages for a player |
+| `GET /players` | List players (search, pagination) |
+| `GET /players/{id}` | Player details |
+| `GET /players/{id}/games` | Player game log by season |
+| `GET /players/{id}/shots` | Player shot chart data |
+| `GET /teams` | List teams |
+| `GET /teams/{id}` | Team details + roster |
+| `GET /games/{id}` | Game box score |
+| `GET /games/{id}/pbp` | Play-by-play for a game |
+| `GET /shot-quality` | Shot quality leaderboard |
+| `GET /lineups` | Lineup stats leaderboard |
+| `GET /rolling` | Rolling stat averages |
 
 Full interactive docs at http://localhost:8000/docs when the API is running.
 
@@ -217,4 +225,3 @@ Full interactive docs at http://localhost:8000/docs when the API is running.
 - **Season ID formats vary:** Game logs and rolling stats use numeric IDs like `"22024"`. Shots and lineups use `"2024-25"`. The API accepts `"2024-25"` and converts internally.
 - **`dims.dim_teams` is empty.** Team data is served from `raw.team_details` instead (no conference/division/colors).
 - **Box score tables exist but are empty.** Per-game box scores were dropped from scope because the NBA API throttles too aggressively. Game logs cover the same data at season granularity.
-- **Password has special characters (`!!`)** which break shell `export`. The dbt profile in `~/.dbt/profiles.yml` and the API `.env` file hardcode the password instead of using env vars.
