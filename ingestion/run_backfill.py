@@ -16,7 +16,7 @@ Usage:
     # Only run specific tiers
     python run_backfill.py --tier reference     # teams, players, draft only
     python run_backfill.py --tier season         # game logs + season aggregates
-    python run_backfill.py --tier game           # per-game data (shots, pbp, box scores)
+    python run_backfill.py --tier game           # per-game data (shots, pbp)
 
     # Reset checkpoints and start fresh
     python run_backfill.py --reset
@@ -24,11 +24,11 @@ Usage:
 Tier order matters. The pipeline runs in this sequence:
     1. reference  - Teams, players, draft history (~10 min)
     2. season     - Game logs, lineups, player stats (~30 min for 15 seasons)
-    3. game       - Shots, play-by-play, box scores (~several hours)
+    3. game       - Shots, play-by-play (~several hours)
 
-The game tier is the bottleneck. Each game needs ~5 API calls (shots + pbp +
-3 box score types), and there are ~1,300 games per season. With 1.5s delays
-between requests, expect roughly:
+The game tier is the bottleneck. Each game needs 2 API calls (shots + pbp),
+and there are ~1,300 games per season. With the configured request delay,
+expect roughly:
     - 2 seasons (smoke test): ~3-4 hours
     - 15 seasons (full backfill): ~20-30 hours total
 
@@ -39,22 +39,23 @@ exactly where you left off.
 import argparse
 import sys
 import time
-from datetime import datetime
 
 # Make sure we can import from the ingestion package
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
 
-from config import all_seasons, CURRENT_SEASON_START, INITIAL_SEASON_START
-from db import test_connection
 from checkpoint import Checkpoint
-from logger import get_logger
-
+from config import CURRENT_SEASON_START, INITIAL_SEASON_START, all_seasons
+from db import test_connection
+from ingestors.game_logs import get_game_ids_for_season, ingest_all_game_logs
+from ingestors.play_by_play import ingest_pbp_for_season
 from ingestors.reference_data import ingest_all_reference_data
-from ingestors.game_logs import ingest_all_game_logs, get_game_ids_for_season
 from ingestors.season_stats import ingest_season_stats
 from ingestors.shot_charts import ingest_shots_for_season
-from ingestors.play_by_play import ingest_pbp_for_season
-from ingestors.box_scores import ingest_box_scores_for_season
+from logger import get_logger
+
+# NOTE: ingestors.box_scores is intentionally not wired into the game tier.
+# See run_game_tier() for the rationale. The module is kept because it is
+# still correct and usable on its own for one-off loads.
 
 log = get_logger("backfill")
 
@@ -78,7 +79,7 @@ def run_season_tier(seasons: list[str]):
 
 def run_game_tier(seasons: list[str]):
     """
-    Tier 3: Per-game data (shots, play-by-play, box scores).
+    Tier 3: Per-game data (shots, play-by-play).
     This is the long-running tier. Uses checkpoints for resume.
     """
     log.info("=" * 60)
@@ -104,8 +105,11 @@ def run_game_tier(seasons: list[str]):
         # Play-by-play
         ingest_pbp_for_season(season, game_ids, checkpoint=ckpt)
 
-        # Box scores dropped from scope (NBA API throttles too aggressively)
-        # ingest_box_scores_for_season(season, game_ids, checkpoint=ckpt)
+        # Box scores are deliberately out of scope for the backfill. The V3
+        # box score endpoints throttle hard enough that a full 15-season load
+        # is not practical, and every downstream dbt model is satisfied by
+        # game logs + shot charts + play-by-play. ingestors/box_scores.py is
+        # still maintained for targeted single-season loads.
 
     log.info(f"Game tier complete. {ckpt.completed_count} total checkpointed items.")
 
