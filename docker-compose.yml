@@ -1,0 +1,76 @@
+# Hoopstack — full local stack.
+#
+#   cp .env.example .env && docker compose up --build
+#
+#   frontend  http://localhost:3000
+#   api       http://localhost:8000  (docs at /docs)
+#   postgres  localhost:5432
+#
+# The database starts EMPTY. The stack is up and wired together, but endpoints
+# have no rows to return until you run the ingestion job and then dbt — see the
+# "Loading data" section of the README.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: hoopstack-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-nba_analytics}
+      POSTGRES_USER: ${DB_USER:-nba_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-hoopstack}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      # -d/-U are required: without them pg_isready checks the "postgres"
+      # database as the root user and reports ready before our db exists.
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-nba_admin} -d ${DB_NAME:-nba_analytics}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: hoopstack-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Same variables as api/.env.example. DB_HOST is the compose service
+      # name rather than localhost, since this resolves on the compose network.
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-nba_analytics}
+      DB_USER: ${DB_USER:-nba_admin}
+      DB_PASSWORD: ${DB_PASSWORD:-hoopstack}
+      API_KEY: ${API_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Build-time, not runtime: Next inlines NEXT_PUBLIC_* during the build.
+        # This must be reachable from the BROWSER, so it is the api service's
+        # published host port, not http://api:8000.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_API_KEY: ${API_KEY:-}
+    container_name: hoopstack-frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
