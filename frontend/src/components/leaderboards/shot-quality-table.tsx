@@ -5,12 +5,9 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { formatPct, formatStat } from '@/lib/utils';
 import type { ShotQuality } from '@/lib/types';
 
+// The rank column is not listed here: it is derived per row in the component
+// below, since it depends on the page offset rather than on the row data.
 const columns: Column<ShotQuality>[] = [
-  {
-    header: '#',
-    accessor: (_, ) => null,
-    format: (_, __, ) => null,
-  },
   {
     header: 'Player',
     accessor: 'player_name',
@@ -34,25 +31,12 @@ interface ShotQualityTableProps {
 }
 
 export function ShotQualityTable({ data, startRank = 1 }: ShotQualityTableProps) {
-  // Override rank column
-  const cols = columns.map((col, idx) => {
-    if (idx === 0) {
-      return {
-        ...col,
-        format: (_: unknown, __: ShotQuality, rowIdx?: number) => (
-          <span className="text-[var(--text-secondary)]">{startRank + (rowIdx ?? 0)}</span>
-        ),
-        accessor: (_: ShotQuality, rowIdx?: number) => startRank + (rowIdx ?? 0),
-      } as Column<ShotQuality>;
-    }
-    return col;
-  });
-
-  // Simpler approach: use index-based rank
+  // Rank is the row's position in the overall leaderboard, so it is baked into
+  // the data rather than computed from the row's own values.
   const rankedData = data.map((d, i) => ({ ...d, _rank: startRank + i }));
   const rankedCols: Column<typeof rankedData[0]>[] = [
     { header: '#', accessor: '_rank', className: 'text-[var(--text-secondary)]' },
-    ...columns.slice(1) as Column<typeof rankedData[0]>[],
+    ...columns as Column<typeof rankedData[0]>[],
   ];
 
   return <DataTable columns={rankedCols} data={rankedData} />;

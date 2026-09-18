@@ -26,7 +26,7 @@ const ZONE_ORDER = [
   'Right Corner 3',
 ];
 
-function getZoneLabel(basic: string | null, area: string | null): string {
+function getZoneLabel(basic: string | null): string {
   if (!basic) return 'Unknown';
   if (basic === 'Above the Break 3') return 'Above the Break 3';
   if (basic === 'Left Corner 3') return 'Left Corner 3';
@@ -45,7 +45,7 @@ export function ShotDistributionTable({ shots }: ShotDistributionTableProps) {
     const grouped = new Map<string, ShotChartItem[]>();
 
     for (const shot of shots) {
-      const label = getZoneLabel(shot.shot_zone_basic, shot.shot_zone_area);
+      const label = getZoneLabel(shot.shot_zone_basic);
       if (!grouped.has(label)) grouped.set(label, []);
       grouped.get(label)!.push(shot);
     }

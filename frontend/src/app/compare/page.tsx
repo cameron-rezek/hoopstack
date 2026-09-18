@@ -35,7 +35,7 @@ import { ShotHexbin } from '@/components/shots/shot-hexbin';
 import { ShotZones } from '@/components/shots/shot-zones';
 import { Tabs } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/loading-skeleton';
-import { formatPct, formatStat, formatPlusMinus, cn } from '@/lib/utils';
+import { formatPct, formatStat, cn } from '@/lib/utils';
 import type { PlayerDetail, PlayerGameAdvanced, ShotChartItem } from '@/lib/types';
 import type { RollingStat } from '@/components/charts/rolling-line-chart';
 import { statConfig } from '@/components/charts/rolling-line-chart';

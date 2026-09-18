@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 
 interface SearchInputProps {
@@ -17,13 +17,17 @@ export function SearchInput({
   debounceMs = 300,
 }: SearchInputProps) {
   const [localValue, setLocalValue] = useState(controlledValue ?? '');
+  const [prevControlledValue, setPrevControlledValue] = useState(controlledValue);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  useEffect(() => {
-    if (controlledValue !== undefined) {
-      setLocalValue(controlledValue);
-    }
-  }, [controlledValue]);
+  // Adjust state during render rather than in an effect. Syncing a prop into
+  // state with useEffect renders once with the stale value and then again with
+  // the new one; this collapses that into a single render pass.
+  // https://react.dev/learn/you-might-not-need-an-effect
+  if (controlledValue !== undefined && controlledValue !== prevControlledValue) {
+    setPrevControlledValue(controlledValue);
+    setLocalValue(controlledValue);
+  }
 
   const handleChange = useCallback(
     (val: string) => {
