@@ -8,8 +8,8 @@ An NBA analytics platform built on play-by-play, shot chart, and game log data. 
 
 | | |
 |---|---|
-| ![Dashboard](docs/screenshots/dashboard.png)<br>**Dashboard** | ![Player shot chart](docs/screenshots/shot-chart.png)<br>**Shot chart** — scatter, hexbin and zone views |
-| ![Player detail](docs/screenshots/player-detail.png)<br>**Player detail** — stats, trends and game log | ![Leaderboards](docs/screenshots/leaderboards.png)<br>**Leaderboards** — shot quality and lineup stats |
+| ![Dashboard](docs/screenshots/dashboard.png)<br>**Dashboard** — coverage totals, scoring leader and a zone shot chart | ![Player shot chart](docs/screenshots/shot-chart.png)<br>**Shot chart** — scatter, hexbin and zone views, filterable by shot type, quarter and result |
+| ![Player detail](docs/screenshots/player-detail.png)<br>**Player detail** — bio, game log and rolling-stat tabs | ![Leaderboards](docs/screenshots/leaderboards.png)<br>**Leaderboards** — shot quality and lineup stats |
 
 ## Architecture
 
