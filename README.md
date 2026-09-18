@@ -1,6 +1,15 @@
 # Hoopstack
 
+[![CI](https://github.com/cameron-rezek/hoopstack/actions/workflows/ci.yml/badge.svg)](https://github.com/cameron-rezek/hoopstack/actions/workflows/ci.yml)
+
 An NBA analytics platform built on play-by-play, shot chart, and game log data. Ingests raw data from the NBA Stats API, transforms it through a layered data model (raw → staging → analytics), and serves it through a REST API to power interactive visualizations.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png)<br>**Dashboard** | ![Player shot chart](docs/screenshots/shot-chart.png)<br>**Shot chart** — scatter, hexbin and zone views |
+| ![Player detail](docs/screenshots/player-detail.png)<br>**Player detail** — stats, trends and game log | ![Leaderboards](docs/screenshots/leaderboards.png)<br>**Leaderboards** — shot quality and lineup stats |
 
 ## Architecture
 
@@ -52,7 +61,8 @@ hoopstack/
 │   ├── database.py
 │   ├── routers/     # 9 routers: players, teams, games, shots, lineups, rolling, pbp, seasons, health
 │   ├── queries/     # Raw SQL queries (no ORM)
-│   └── models/      # Pydantic response models
+│   ├── models/      # Pydantic response models
+│   └── tests/       # pytest suite (mocked pool, no database needed)
 ├── frontend/        # Next.js app
 │   └── src/
 │       ├── app/         # 7 routes: /, /players, /players/[id], /teams, /teams/[id], /games/[id], /leaderboards
@@ -60,16 +70,52 @@ hoopstack/
 │       ├── lib/         # API client, utilities
 │       └── contexts/    # Season context for global filtering
 ├── scripts/         # DB migration and index scripts
-└── NBA-Instructions/# Planning docs and progress notes
+├── docker/          # Postgres init SQL for the compose stack
+└── docs/            # Screenshots and supporting docs
 ```
 
 ## Prerequisites
 
-- **PostgreSQL** running and accessible
-- **Python 3.11+** (for API and ingestion)
-- **Node.js 18+** (for frontend)
+Either Docker on its own, or the full local toolchain:
 
-## Getting Started
+- **Docker** with Compose v2 — for the quick start below
+- **PostgreSQL 16** running and accessible — for manual setup
+- **Python 3.12+** (for API and ingestion)
+- **Node.js 20+** (for frontend)
+
+## Quick Start with Docker
+
+Brings up Postgres, the API and the frontend together:
+
+```bash
+cp .env.example .env     # edit DB_PASSWORD at minimum
+docker compose up --build
+```
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| API | http://localhost:8000 |
+| API docs | http://localhost:8000/docs |
+| Postgres | `localhost:5432` |
+
+**The database starts empty.** Compose creates the `raw`, `staging` and
+`analytics` schemas, but no tables exist until you load data. Until then
+`/health` reports `"status": "degraded"` and lists the models that have not
+been built — that is expected, not a failure. See
+[Loading data into the compose stack](#loading-data-into-the-compose-stack).
+
+A few things worth knowing:
+
+- `NEXT_PUBLIC_API_URL` is baked into the frontend bundle **at build time**, and
+  it is read by the browser, not by the container. It therefore points at
+  `http://localhost:8000` (the API's published port), not `http://api:8000`.
+  Changing it means rebuilding the frontend image, not just restarting it.
+- The API waits for Postgres's healthcheck to pass before starting.
+- Postgres data lives in the `pgdata` named volume. `docker compose down -v`
+  wipes it and re-runs `docker/init-db.sql` on the next boot.
+
+## Manual Setup
 
 ### 1. Configure Environment
 
@@ -127,6 +173,32 @@ NEXT_PUBLIC_API_KEY=your-api-key-here
 - **API key auth** is opt-in. Set `API_KEY` in `api/.env` to enforce it. Clients must send the key in the `X-API-Key` header. Leave `API_KEY` empty to disable auth (useful for local dev).
 - **Rate limiting** is enabled by default at 60 requests/minute per IP via slowapi.
 
+## Testing
+
+The API suite fakes the asyncpg pool, so it runs with no Postgres and no
+network:
+
+```bash
+cd api
+pip install -r requirements-dev.txt
+pytest
+```
+
+It covers the health endpoint's behaviour against both a populated and an
+unbuilt warehouse, `X-API-Key` enforcement in both the enabled and disabled
+configurations, 404 handling for unknown players, and the `2024-25` →
+`season_id` conversion (including the check that all three routers carrying a
+copy of that helper still agree).
+
+Linting uses ruff, configured in `pyproject.toml` at the repo root:
+
+```bash
+ruff check api/ ingestion/
+```
+
+Both run in CI on every push and pull request, alongside `dbt parse` and a
+frontend lint and build. See `.github/workflows/ci.yml`.
+
 ## Updating Data
 
 ### Daily Updates (Automated)
@@ -165,6 +237,51 @@ python run_backfill.py --reset
 - The NBA API throttles after ~500-600 rapid calls. The ingestion has configurable delays and a cooldown mechanism (3 consecutive failures → 5-minute pause).
 - A full season backfill (game tier) takes several hours due to API rate limits.
 - The checkpoint system means you can stop and resume safely.
+
+### Loading data into the compose stack
+
+The ingestion job is deliberately **not** a compose service — it is a
+long-running batch process measured in hours, not something that should start
+and restart with the app. Run it from the host against the compose Postgres,
+which is published on `localhost:5432`:
+
+```bash
+cd ingestion
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+```
+
+Point that `.env` at the compose database — matching whatever you set in the
+root `.env`:
+
+```
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=nba_analytics
+DB_USER=nba_admin
+DB_PASSWORD=<the DB_PASSWORD from your root .env>
+```
+
+Then load a season and build the models:
+
+```bash
+python run_backfill.py --start 2024 --end 2024 --tier reference
+python run_backfill.py --start 2024 --end 2024 --tier season
+python run_backfill.py --start 2024 --end 2024 --tier game     # hours; resumable
+
+cd ../dbt
+dbt deps && dbt run
+```
+
+`/health` flips from `degraded` to `healthy` once the dbt models exist. dbt
+needs the same credentials in `~/.dbt/profiles.yml` under a `hoopstack`
+profile.
+
+Checkpoints are written to `ingestion/checkpoints/` and are deliberately
+untracked — they are machine-local resume state. The directory is created
+automatically on first run.
 
 ### After Ingestion: Refresh dbt Models
 
@@ -225,3 +342,7 @@ Full interactive docs at http://localhost:8000/docs when the API is running.
 - **Season ID formats vary:** Game logs and rolling stats use numeric IDs like `"22024"`. Shots and lineups use `"2024-25"`. The API accepts `"2024-25"` and converts internally.
 - **`dims.dim_teams` is empty.** Team data is served from `raw.team_details` instead (no conference/division/colors).
 - **Box score tables exist but are empty.** Per-game box scores were dropped from scope because the NBA API throttles too aggressively. Game logs cover the same data at season granularity.
+
+## License
+
+[MIT](LICENSE) © Cameron Rezek
