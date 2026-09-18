@@ -4,11 +4,12 @@ Handles rate limiting, retries, and DataFrame extraction from nba_api endpoints.
 """
 
 import time
-import requests
-import pandas as pd
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-from config import REQUEST_DELAY, MAX_RETRIES, API_TIMEOUT
+import pandas as pd
+import requests
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+from config import API_TIMEOUT, MAX_RETRIES, REQUEST_DELAY
 from logger import get_logger
 
 log = get_logger("nba_client")

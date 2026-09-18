@@ -3,13 +3,13 @@ Ingest reference/dimension data: teams, players, and draft history.
 These are mostly static and only need occasional refreshes.
 """
 
-import pandas as pd
-from nba_api.stats.endpoints import CommonPlayerInfo, TeamDetails, DraftHistory
-from nba_api.stats.static import teams as nba_teams, players as nba_players
+from nba_api.stats.endpoints import CommonPlayerInfo, DraftHistory, TeamDetails
+from nba_api.stats.static import players as nba_players
+from nba_api.stats.static import teams as nba_teams
 
-from nba_client import fetch_endpoint
-from db import bulk_insert, delete_and_insert
+from db import bulk_insert
 from logger import get_logger
+from nba_client import fetch_endpoint
 
 log = get_logger("ingest.reference")
 

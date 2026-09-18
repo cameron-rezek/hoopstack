@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends
 import asyncpg
+from fastapi import APIRouter, Depends
 
 from api.dependencies import db_pool
 

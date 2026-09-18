@@ -4,13 +4,12 @@ This is also the primary way we discover game IDs for per-game endpoints.
 Pulls both player-level and team-level game logs.
 """
 
-import pandas as pd
 from nba_api.stats.endpoints import LeagueGameFinder
 
-from nba_client import fetch_endpoint
+from config import SEASON_TYPE_PLAYOFFS, SEASON_TYPE_REGULAR
 from db import delete_and_insert, get_conn
-from config import SEASON_TYPE_REGULAR, SEASON_TYPE_PLAYOFFS
 from logger import get_logger
+from nba_client import fetch_endpoint
 
 log = get_logger("ingest.game_logs")
 

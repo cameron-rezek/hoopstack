@@ -21,15 +21,14 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
 
-from config import season_string, CURRENT_SEASON_START, SEASON_TYPE_REGULAR
-from db import test_connection, get_conn
-from logger import get_logger
-
-from ingestors.game_logs import ingest_game_logs_for_season
-from ingestors.shot_charts import ingest_shots_for_game
-from ingestors.play_by_play import ingest_pbp_for_game
+from config import SEASON_TYPE_REGULAR, season_string
+from db import get_conn, test_connection
 from ingestors.box_scores import ingest_all_box_scores_for_game
+from ingestors.game_logs import ingest_game_logs_for_season
+from ingestors.play_by_play import ingest_pbp_for_game
 from ingestors.season_stats import ingest_lineups_for_season, ingest_player_stats_for_season
+from ingestors.shot_charts import ingest_shots_for_game
+from logger import get_logger
 
 log = get_logger("daily")
 

@@ -3,11 +3,12 @@ Database connection management and bulk insert/upsert utilities.
 Uses psycopg2 with connection pooling for reliable inserts.
 """
 
+from contextlib import contextmanager
+
+import pandas as pd
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
-import pandas as pd
-from contextlib import contextmanager
 
 from config import DB_DSN
 from logger import get_logger

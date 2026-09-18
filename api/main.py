@@ -7,13 +7,15 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from api.config import settings
-from api.database import create_pool, close_pool
+from api.database import close_pool, create_pool
 from api.dependencies import verify_api_key
 from api.exceptions import (
-    NotFoundError, DatabaseError,
-    not_found_handler, database_error_handler,
+    DatabaseError,
+    NotFoundError,
+    database_error_handler,
+    not_found_handler,
 )
-from api.routers import health, players, teams, games, shots, lineups, rolling, pbp, seasons
+from api.routers import games, health, lineups, pbp, players, rolling, seasons, shots, teams
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 

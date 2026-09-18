@@ -6,18 +6,19 @@ Each box score endpoint returns player-level and team-level result sets.
 
 import re
 import time
+
 import pandas as pd
 from nba_api.stats.endpoints import (
-    BoxScoreTraditionalV3,
     BoxScoreAdvancedV3,
     BoxScoreMiscV3,
+    BoxScoreTraditionalV3,
 )
 
-from nba_client import fetch_all_result_sets
-from db import bulk_insert
 from checkpoint import Checkpoint
-from config import COOLDOWN_THRESHOLD, COOLDOWN_SECONDS
+from config import COOLDOWN_SECONDS, COOLDOWN_THRESHOLD
+from db import bulk_insert
 from logger import get_logger
+from nba_client import fetch_all_result_sets
 
 log = get_logger("ingest.boxscores")
 

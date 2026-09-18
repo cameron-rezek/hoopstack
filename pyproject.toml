@@ -1,0 +1,71 @@
+# Shared tooling config for the Python components (api/ and ingestion/).
+# The dbt project and the Next.js frontend carry their own config.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+extend-exclude = [
+    "api-venv",
+    "dbt-venv",
+    ".venv",
+    "dbt/target",
+    "dbt/dbt_packages",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # import sorting
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # comprehension simplifications
+    "RUF",  # ruff-specific
+]
+ignore = [
+    # Long lines are a judgement call here: wrapping SQL fragments and log
+    # messages to fit hurts them more than it helps.
+    "E501",
+    # UP046 wants PEP 695 syntax for PaginatedResponse (`class Foo[T](BaseModel)`).
+    # Left alone deliberately — rewriting a generic pydantic model changes how
+    # its schema is built, which is more than a lint fix should do.
+    "UP046",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Both runners insert their own directory on sys.path before importing sibling
+# modules as top-level names, so their imports cannot all sit at the top.
+"ingestion/run_backfill.py" = ["E402"]
+"ingestion/run_daily.py" = ["E402"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency injection is expressed as call-in-default-argument.
+# B008 is correct in general and wrong for every one of these.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+]
+
+[tool.ruff.lint.isort]
+# The ingestion modules are imported as top-level names ("from config import
+# ...") because the runners add their own directory to sys.path. Without
+# listing them, isort files them under third-party and interleaves them with
+# real third-party packages such as nba_api.
+known-first-party = [
+    "api",
+    "ingestion",
+    "checkpoint",
+    "config",
+    "db",
+    "ingestors",
+    "logger",
+    "nba_client",
+]

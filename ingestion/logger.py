@@ -5,8 +5,8 @@ Logs to both console and a rotating file.
 
 import logging
 import sys
-from pathlib import Path
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from config import LOG_LEVEL
 

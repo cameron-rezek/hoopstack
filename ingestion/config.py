@@ -5,6 +5,7 @@ Loads from .env file or environment variables.
 
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load .env from the ingestion directory

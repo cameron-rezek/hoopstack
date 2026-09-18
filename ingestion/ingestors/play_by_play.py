@@ -5,14 +5,14 @@ Uses PlayByPlayV3 (V2 was deprecated by the NBA API in 2024-25).
 
 import re
 import time
-import pandas as pd
+
 from nba_api.stats.endpoints import PlayByPlayV3
 
-from nba_client import fetch_endpoint
-from db import bulk_insert
 from checkpoint import Checkpoint
-from config import COOLDOWN_THRESHOLD, COOLDOWN_SECONDS
+from config import COOLDOWN_SECONDS, COOLDOWN_THRESHOLD
+from db import bulk_insert
 from logger import get_logger
+from nba_client import fetch_endpoint
 
 log = get_logger("ingest.pbp")
 

@@ -1,14 +1,14 @@
 import math
 
-from fastapi import APIRouter, Depends, Query
 import asyncpg
+from fastapi import APIRouter, Depends, Query
 
-from api.dependencies import db_pool, Pagination
+from api.dependencies import Pagination, db_pool
 from api.exceptions import NotFoundError
 from api.models.common import PaginatedResponse
 from api.models.games import GameSummary, PlayerGameAdvanced
-from api.models.shots import ShotChartItem
 from api.models.pbp import PlayByPlayEvent
+from api.models.shots import ShotChartItem
 from api.queries import games as sql
 
 router = APIRouter(prefix="/games", tags=["Games"])

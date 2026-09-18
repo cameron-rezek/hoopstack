@@ -1,9 +1,9 @@
 import math
 
-from fastapi import APIRouter, Depends, Query
 import asyncpg
+from fastapi import APIRouter, Depends, Query
 
-from api.dependencies import db_pool, Pagination
+from api.dependencies import Pagination, db_pool
 from api.models.common import PaginatedResponse
 from api.models.rolling import PlayerRollingStats
 from api.queries import rolling as sql

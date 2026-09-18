@@ -4,14 +4,14 @@ Pulls all shots for each game using player_id=0 (all players).
 """
 
 import time
-import pandas as pd
+
 from nba_api.stats.endpoints import ShotChartDetail
 
-from nba_client import fetch_endpoint
-from db import bulk_insert, get_existing_game_ids
 from checkpoint import Checkpoint
-from config import SEASON_TYPE_REGULAR, SEASON_TYPE_PLAYOFFS, COOLDOWN_THRESHOLD, COOLDOWN_SECONDS
+from config import COOLDOWN_SECONDS, COOLDOWN_THRESHOLD, SEASON_TYPE_REGULAR
+from db import bulk_insert
 from logger import get_logger
+from nba_client import fetch_endpoint
 
 log = get_logger("ingest.shots")
 

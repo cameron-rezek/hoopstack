@@ -1,13 +1,13 @@
 import math
 
-from fastapi import APIRouter, Depends, Query
 import asyncpg
+from fastapi import APIRouter, Depends, Query
 
-from api.dependencies import db_pool, Pagination
+from api.dependencies import Pagination, db_pool
 from api.exceptions import NotFoundError
 from api.models.common import PaginatedResponse
-from api.models.teams import TeamSummary, TeamGameLog
 from api.models.lineups import LineupStats
+from api.models.teams import TeamGameLog, TeamSummary
 from api.queries import teams as sql
 
 router = APIRouter(prefix="/teams", tags=["Teams"])

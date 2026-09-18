@@ -1,6 +1,6 @@
-from fastapi import Query, Security, HTTPException
-from fastapi.security import APIKeyHeader
 import asyncpg
+from fastapi import HTTPException, Query, Security
+from fastapi.security import APIKeyHeader
 
 from api.config import settings
 from api.database import get_pool

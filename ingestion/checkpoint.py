@@ -4,7 +4,7 @@ Uses simple JSON files to track which games/seasons have been processed.
 """
 
 import json
-from pathlib import Path
+
 from config import CHECKPOINT_DIR
 from logger import get_logger
 
