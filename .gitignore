@@ -45,3 +45,11 @@ data/
 
 # Jupyter notebooks checkpoints
 .ipynb_checkpoints/
+
+# Ingestion run state (machine-local resume progress, not source)
+ingestion/checkpoints/*
+!ingestion/checkpoints/.gitkeep
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
