@@ -70,7 +70,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dbt
-        run: pip install "dbt-core~=1.9.0" "dbt-postgres~=1.9.0"
+        # 1.10+ is required: the model YAML nests generic test parameters
+        # under `arguments:`, which older dbt does not accept.
+        run: pip install "dbt-core~=1.11.0" "dbt-postgres~=1.11.0"
 
       - name: Write a dummy profile
         # `dbt parse` compiles the DAG without opening a connection, but it
